@@ -277,10 +277,11 @@ class Ganomaly(BaseModel):
             self.netd.load_state_dict(torch.load(os.path.join(self.opt.resume, 'netD.pth'))['state_dict'])
             print("\tDone.\n")
 
-        self.l_adv = l2_loss
-        self.l_con = nn.L1Loss()
-        self.l_enc = l2_loss
-        self.l_bce = nn.BCELoss()
+        self.l_fra = nn.BCELoss()
+        self.l_app = nn.L1Loss()
+        self.l_lat = l2_loss
+
+        self.l_dis = l2_loss
 
         ##
         # Initialize input tensors.
@@ -314,25 +315,23 @@ class Ganomaly(BaseModel):
     ##
     def backward_g(self):
         """ Backpropagate through netG
-        """
-        self.err_g_adv = self.l_adv(self.netd(self.input)[1], self.netd(self.fake)[1])
-        self.err_g_con = self.l_con(self.fake, self.input)
-        self.err_g_enc = self.l_enc(self.latent_o, self.latent_i)
-        self.err_g = self.err_g_adv * self.opt.w_adv + \
-                     self.err_g_con * self.opt.w_con + \
-                     self.err_g_enc * self.opt.w_enc
+        """ 
+
+        self.err_g_fra = self.l_fra(self.pred_real, 1)
+        self.err_g_app = self.l_app(self.input, self.fake)
+        self.err_g_lat = self.l_lat(self.latent_i, self.latent_o)
+        self.err_g = self.err_g_fra * self.opt.w_fra + \
+                     self.err_g_app * self.opt.w_app + \
+                     self.err_g_lat * self.opt.w_lat
         self.err_g.backward(retain_graph=True)
 
     ##
     def backward_d(self):
         """ Backpropagate through netD
         """
-        # Real - Fake Loss
-        self.err_d_real = self.l_bce(self.pred_real, self.real_label)
-        self.err_d_fake = self.l_bce(self.pred_fake, self.fake_label)
+        self.err_d = self.l_dis(self.netd(self.input)[1], self.netd(self.fake)[1])
 
-        # NetD Loss & Backward-Pass
-        self.err_d = (self.err_d_real + self.err_d_fake) * 0.5
+        # Backward-Pass
         self.err_d.backward()
 
     ##
