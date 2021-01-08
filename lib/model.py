@@ -10,6 +10,7 @@ import numpy as np
 from tqdm import tqdm
 
 from torch.autograd import Variable
+from torch import ones_like
 import torch.optim as optim
 import torch.nn as nn
 import torch.utils.data
@@ -317,7 +318,7 @@ class Ganomaly(BaseModel):
         """ Backpropagate through netG
         """ 
 
-        self.err_g_fra = self.l_fra(self.pred_real, np.array([1] * len(self.pred_real)))
+        self.err_g_fra = self.l_fra(self.pred_real, ones_like(self.pred_real).fill_(1.0))
         self.err_g_app = self.l_app(self.input, self.fake)
         self.err_g_lat = self.l_lat(self.latent_i, self.latent_o)
         self.err_g = self.err_g_fra * self.opt.w_fra + \
