@@ -84,9 +84,9 @@ class BaseModel():
         errors = OrderedDict([
             ('err_d', self.err_d.item()),
             ('err_g', self.err_g.item()),
-            ('err_g_fra', self.err_g_adv.item()),
-            ('err_g_app', self.err_g_con.item()),
-            ('err_g_lat', self.err_g_enc.item())])
+            ('err_g_fra', self.err_g_fra.item()),
+            ('err_g_app', self.err_g_app.item()),
+            ('err_g_lat', self.err_g_lat.item())])
 
         return errors
 
