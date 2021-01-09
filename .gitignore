@@ -1,7 +1,6 @@
 ##
 #DIRECTORIES
 data/*
-!data/sample
 output/
 *.pth
 samples/
