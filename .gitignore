@@ -1,6 +1,8 @@
 ##
 #DIRECTORIES
 data/*
+!data/cwru0.parquet
+!data/cwru1.parquet
 output/
 *.pth
 samples/
