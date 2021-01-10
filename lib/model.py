@@ -17,393 +17,131 @@ import torch.utils.data
 import torchvision.utils as vutils
 
 from lib.networks import NetG, NetD, weights_init
-from lib.visualizer import Visualizer
 from lib.loss import l2_loss
-from lib.evaluate import evaluate
 
-
-
-        #self.parser.add_argument('--dataset', default='cifar10', help='folder | cifar10 | mnist ')
-        #self.parser.add_argument('--dataroot', default='', help='path to dataset')
-        #self.parser.add_argument('--batchsize', type=int, default=64, help='input batch size')
-        #self.parser.add_argument('--workers', type=int, help='number of data loading workers', default=8)
-        #self.parser.add_argument('--droplast', action='store_true', default=True, help='Drop last batch size.')
-        #self.parser.add_argument('--isize', type=int, default=32, help='input image size.')
-        #self.parser.add_argument('--nc', type=int, default=3, help='input image channels')
-        #self.parser.add_argument('--nz', type=int, default=100, help='size of the latent z vector')
-        #self.parser.add_argument('--ngf', type=int, default=64)
-        #self.parser.add_argument('--ndf', type=int, default=64)
-        #self.parser.add_argument('--extralayers', type=int, default=0, help='Number of extra layers on gen and disc')
-        #self.parser.add_argument('--device', type=str, default='gpu', help='Device: gpu | cpu')
-        #self.parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
-        #self.parser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use')
-        #self.parser.add_argument('--name', type=str, default='experiment_name', help='name of the experiment')
-        #self.parser.add_argument('--model', type=str, default='ganomaly', help='chooses which model to use. ganomaly')
-        #self.parser.add_argument('--display_server', type=str, default="http://localhost", help='visdom server of the web display')
-        #self.parser.add_argument('--display_port', type=int, default=8097, help='visdom port of the web display')
-        #self.parser.add_argument('--display_id', type=int, default=0, help='window id of the web display')
-        #self.parser.add_argument('--display', action='store_true', help='Use visdom.')
-        #self.parser.add_argument('--outf', default='./output', help='folder to output images and model checkpoints')
-        #self.parser.add_argument('--manualseed', default=-1, type=int, help='manual seed')
-        #self.parser.add_argument('--abnormal_class', default='car', help='Anomaly class idx for mnist and cifar datasets')
-        #self.parser.add_argument('--proportion', type=float, default=0.1, help='Proportion of anomalies in test set.')
-        #self.parser.add_argument('--metric', type=str, default='roc', help='Evaluation metric.')
-        ##
-        # Train
-        #self.parser.add_argument('--print_freq', type=int, default=100, help='frequency of showing training results on console')
-        #self.parser.add_argument('--save_image_freq', type=int, default=100, help='frequency of saving real and fake images')
-        #self.parser.add_argument('--save_test_images', action='store_true', help='Save test images for demo.')
-
-        #self.parser.add_argument('--load_weights', action='store_true', help='Load the pretrained weights')
-        #self.parser.add_argument('--resume', default='', help="path to checkpoints (to continue training)")
-        #self.parser.add_argument('--phase', type=str, default='train', help='train, val, test, etc')
-        #self.parser.add_argument('--iter', type=int, default=0, help='Start from iteration i')
-        #self.parser.add_argument('--niter', type=int, default=15, help='number of epochs to train for')
-        #self.parser.add_argument('--beta1', type=float, default=0.5, help='momentum term of adam')
-        #self.parser.add_argument('--lr', type=float, default=0.0002, help='initial learning rate for adam')
-        #self.parser.add_argument('--w_adv', type=float, default=1, help='Adversarial loss weight')
-        #self.parser.add_argument('--w_con', type=float, default=50, help='Reconstruction loss weight')
-        #self.parser.add_argument('--w_enc', type=float, default=1, help='Encoder loss weight.')
-        #self.isTrain = True
-        #self.opt = None
-
-
-class BaseModel():
-    """ Base Model for ganomaly
-    """
-    def __init__(self, batch_size = 64, drop_last = True, input_size = 32, number_channels = 3, z_size = 100, ngf = 64, ndf = 64, extra_layers = 0, output_folder = './output', seed = -1, metric = 'roc', print_freq=100, save_image_freq = 100, save_test_images = True,
-                load_weights = False):
-        ##
-        # Seed for deterministic behavior
-        self.seed(opt.manualseed)
-
-        # Initalize variables.
-        self.opt = opt
-        self.visualizer = Visualizer(opt)
-        self.dataloader = dataloader
-        self.trn_dir = os.path.join(self.opt.outf, self.opt.name, 'train')
-        self.tst_dir = os.path.join(self.opt.outf, self.opt.name, 'test')
-        self.device = torch.device("cuda:0" if self.opt.device != 'cpu' else "cpu")
-
-    ##
-    def set_input(self, input:torch.Tensor):
-        """ Set input and ground truth
-
-        Args:
-            input (FloatTensor): Input data for batch i.
-        """
-        with torch.no_grad():
-            self.input.resize_(input[0].size()).copy_(input[0])
-            self.gt.resize_(input[1].size()).copy_(input[1])
-            self.label.resize_(input[1].size())
-
-            # Copy the first batch as the fixed input.
-            if self.total_steps == self.opt.batchsize:
-                self.fixed_input.resize_(input[0].size()).copy_(input[0])
-
-    ##
-    def seed(self, seed_value):
-        """ Seed 
-        
-        Arguments:
-            seed_value {int} -- [description]
-        """
-        # Check if seed is default value
-        if seed_value == -1:
-            return
-
-        # Otherwise seed all functionality
-        import random
-        random.seed(seed_value)
-        torch.manual_seed(seed_value)
-        torch.cuda.manual_seed_all(seed_value)
-        np.random.seed(seed_value)
-        torch.backends.cudnn.deterministic = True
-
-    ##
-    def get_errors(self):
-        """ Get netD and netG errors.
-
-        Returns:
-            [OrderedDict]: Dictionary containing errors.
-        """
-
-        errors = OrderedDict([
-            ('err_d', self.err_d.item()),
-            ('err_g', self.err_g.item()),
-            ('err_g_fra', self.err_g_fra.item()),
-            ('err_g_app', self.err_g_app.item()),
-            ('err_g_lat', self.err_g_lat.item())])
-
-        return errors
-
-    ##
-    def get_current_images(self):
-        """ Returns current images.
-
-        Returns:
-            [reals, fakes, fixed]
-        """
-
-        reals = self.input.data
-        fakes = self.fake.data
-        fixed = self.netg(self.fixed_input)[0].data
-
-        return reals, fakes, fixed
-
-    ##
-    def save_weights(self, epoch):
-        """Save netG and netD weights for the current epoch.
-
-        Args:
-            epoch ([int]): Current epoch number.
-        """
-
-        weight_dir = os.path.join(self.opt.outf, self.opt.name, 'train', 'weights')
-        if not os.path.exists(weight_dir): os.makedirs(weight_dir)
-
-        torch.save({'epoch': epoch + 1, 'state_dict': self.netg.state_dict()},
-                   '%s/netG.pth' % (weight_dir))
-        torch.save({'epoch': epoch + 1, 'state_dict': self.netd.state_dict()},
-                   '%s/netD.pth' % (weight_dir))
-
-    ##
-    def train_one_epoch(self):
-        """ Train the model for one epoch.
-        """
-
-        self.netg.train()
-        epoch_iter = 0
-        for data in tqdm(self.dataloader['train'], leave=False, total=len(self.dataloader['train'])):
-            self.total_steps += self.opt.batchsize
-            epoch_iter += self.opt.batchsize
-
-            self.set_input(data)
-            # self.optimize()
-            self.optimize_params()
-
-            if self.total_steps % self.opt.print_freq == 0:
-                errors = self.get_errors()
-                if self.opt.display:
-                    counter_ratio = float(epoch_iter) / len(self.dataloader['train'].dataset)
-                    self.visualizer.plot_current_errors(self.epoch, counter_ratio, errors)
-
-            if self.total_steps % self.opt.save_image_freq == 0:
-                reals, fakes, fixed = self.get_current_images()
-                self.visualizer.save_current_images(self.epoch, reals, fakes, fixed)
-                if self.opt.display:
-                    self.visualizer.display_current_images(reals, fakes, fixed)
-
-        print(">> Training model %s. Epoch %d/%d" % (self.name, self.epoch+1, self.opt.niter))
-        # self.visualizer.print_current_errors(self.epoch, errors)
-
-    ##
-    def train(self):
-        """ Train the model
-        """
-
-        ##
-        # TRAIN
-        self.total_steps = 0
-        best_auc = 0
-
-        # Train for niter epochs.
-        print(">> Training model %s." % self.name)
-        for self.epoch in range(self.opt.iter, self.opt.niter):
-            # Train for one epoch
-            self.train_one_epoch()
-            res = self.test()
-            if res[self.opt.metric] > best_auc:
-                best_auc = res[self.opt.metric]
-                self.save_weights(self.epoch)
-            self.visualizer.print_current_performance(res, best_auc)
-        print(">> Training model %s.[Done]" % self.name)
-
-    ##
-    def test(self):
-        """ Test GANomaly model.
-
-        Args:
-            dataloader ([type]): Dataloader for the test set
-
-        Raises:
-            IOError: Model weights not found.
-        """
-        with torch.no_grad():
-            # Load the weights of netg and netd.
-            if self.opt.load_weights:
-                path = "./output/{}/{}/train/weights/netG.pth".format(self.name.lower(), self.opt.dataset)
-                pretrained_dict = torch.load(path)['state_dict']
-
-                try:
-                    self.netg.load_state_dict(pretrained_dict)
-                except IOError:
-                    raise IOError("netG weights not found")
-                print('   Loaded weights.')
-
-            self.opt.phase = 'test'
-
-            # Create big error tensor for the test set.
-            self.an_scores = torch.zeros(size=(len(self.dataloader['test'].dataset),), dtype=torch.float32, device=self.device)
-            self.gt_labels = torch.zeros(size=(len(self.dataloader['test'].dataset),), dtype=torch.long,    device=self.device)
-            self.latent_i  = torch.zeros(size=(len(self.dataloader['test'].dataset), self.opt.nz), dtype=torch.float32, device=self.device)
-            self.latent_o  = torch.zeros(size=(len(self.dataloader['test'].dataset), self.opt.nz), dtype=torch.float32, device=self.device)
-
-            # print("   Testing model %s." % self.name)
-            self.times = []
-            self.total_steps = 0
-            epoch_iter = 0
-            for i, data in enumerate(self.dataloader['test'], 0):
-                self.total_steps += self.opt.batchsize
-                epoch_iter += self.opt.batchsize
-                time_i = time.time()
-                self.set_input(data)
-                self.fake, latent_i, latent_o = self.netg(self.input)
-
-                error = torch.mean(torch.pow((latent_i-latent_o), 2), dim=1)
-                time_o = time.time()
-
-                self.an_scores[i*self.opt.batchsize : i*self.opt.batchsize+error.size(0)] = error.reshape(error.size(0))
-                self.gt_labels[i*self.opt.batchsize : i*self.opt.batchsize+error.size(0)] = self.gt.reshape(error.size(0))
-                self.latent_i [i*self.opt.batchsize : i*self.opt.batchsize+error.size(0), :] = latent_i.reshape(error.size(0), self.opt.nz)
-                self.latent_o [i*self.opt.batchsize : i*self.opt.batchsize+error.size(0), :] = latent_o.reshape(error.size(0), self.opt.nz)
-
-                self.times.append(time_o - time_i)
-
-                # Save test images.
-                if self.opt.save_test_images:
-                    dst = os.path.join(self.opt.outf, self.opt.name, 'test', 'images')
-                    if not os.path.isdir(dst):
-                        os.makedirs(dst)
-                    real, fake, _ = self.get_current_images()
-                    vutils.save_image(real, '%s/real_%03d.eps' % (dst, i+1), normalize=True)
-                    vutils.save_image(fake, '%s/fake_%03d.eps' % (dst, i+1), normalize=True)
-
-            # Measure inference time.
-            self.times = np.array(self.times)
-            self.times = np.mean(self.times[:100] * 1000)
-
-            # Scale error vector between [0, 1]
-            self.an_scores = (self.an_scores - torch.min(self.an_scores)) / (torch.max(self.an_scores) - torch.min(self.an_scores))
-            # auc, eer = roc(self.gt_labels, self.an_scores)
-            auc = evaluate(self.gt_labels, self.an_scores, metric=self.opt.metric)
-            performance = OrderedDict([('Avg Run Time (ms/batch)', self.times), (self.opt.metric, auc)])
-
-            if self.opt.display_id > 0 and self.opt.phase == 'test':
-                counter_ratio = float(epoch_iter) / len(self.dataloader['test'].dataset)
-                self.visualizer.plot_performance(self.epoch, counter_ratio, performance)
-            return performance
-
+from skorch import NeuralNet
+from skorch.utils import to_tensor
 ##
-class Ganomaly(BaseModel):
+class Ganomaly(nn.Module):
     """GANomaly Class
     """
 
     @property
     def name(self): return 'Ganomaly'
 
-    def __init__(self, opt, dataloader):
-        super(Ganomaly, self).__init__(opt, dataloader)
+    def __init__(self, isize, nz, nc, ndf, ngf, ngpu, n_extra_layers=0, w_fra = 1, w_app = 1, w_lat = 1):
+        super().__init__()
+        
+        self.isize = isize
+        self.nc = nc
+        self.nz = nz
+        self.ndf = ndf
+        self.ngf = ngf
+        self.ngpu = ngpu
+        self.w_fra = w_fra
+        self.w_app = w_app
+        self.w_lat = w_lat
+        self.n_extra_layers = n_extra_layers
 
-        # -- Misc attributes
-        self.epoch = 0
-        self.times = []
-        self.total_steps = 0
+        self.discriminator = NetD(
+            isize=self.isize,
+            nz=self.nz,
+            nc=self.nc,
+            ndf=self.ndf,
+            ngpu=self.ngpu,
+            n_extra_layers=self.n_extra_layers
+        )
+        self.discriminator.apply(weights_init)
+        self.generator = NetG(
+            isize=self.isize,
+            nz=self.nz,
+            nc=self.nc,
+            ngf=self.ngf,
+            ngpu=self.ngpu,
+            n_extra_layers=self.n_extra_layers
+        )
+        self.generator.apply(weights_init)
 
-        ##
-        # Create and initialize networks.
-        self.netg = NetG(self.opt).to(self.device)
-        self.netd = NetD(self.opt).to(self.device)
-        self.netg.apply(weights_init)
-        self.netd.apply(weights_init)
 
-        ##
-        if self.opt.resume != '':
-            print("\nLoading pre-trained networks.")
-            self.opt.iter = torch.load(os.path.join(self.opt.resume, 'netG.pth'))['epoch']
-            self.netg.load_state_dict(torch.load(os.path.join(self.opt.resume, 'netG.pth'))['state_dict'])
-            self.netd.load_state_dict(torch.load(os.path.join(self.opt.resume, 'netD.pth'))['state_dict'])
-            print("\tDone.\n")
+    def forward(self, X, y=None):
+        # general forward method just returns fake images
+        return self.generator(X)
+
+class GanomalyNet(NeuralNet):
+    def __init__(self, *args, optimizer_gen, optimizer_dis, **kwargs):
+        self.optimizer_gen = optimizer_gen
+        self.optimizer_dis = optimizer_dis
 
         self.l_fra = nn.BCELoss()
         self.l_app = nn.L1Loss()
         self.l_lat = l2_loss
-
         self.l_dis = l2_loss
 
-        ##
-        # Initialize input tensors.
-        self.input = torch.empty(size=(self.opt.batchsize, 3, self.opt.isize, self.opt.isize), dtype=torch.float32, device=self.device)
-        self.label = torch.empty(size=(self.opt.batchsize,), dtype=torch.float32, device=self.device)
-        self.gt    = torch.empty(size=(opt.batchsize,), dtype=torch.long, device=self.device)
-        self.fixed_input = torch.empty(size=(self.opt.batchsize, 3, self.opt.isize, self.opt.isize), dtype=torch.float32, device=self.device)
-        self.real_label = torch.ones (size=(self.opt.batchsize,), dtype=torch.float32, device=self.device)
-        self.fake_label = torch.zeros(size=(self.opt.batchsize,), dtype=torch.float32, device=self.device)
-        ##
-        # Setup optimizer
-        if self.opt.isTrain:
-            self.netg.train()
-            self.netd.train()
-            self.optimizer_d = optim.Adam(self.netd.parameters(), lr=self.opt.lr, betas=(self.opt.beta1, 0.999))
-            self.optimizer_g = optim.Adam(self.netg.parameters(), lr=self.opt.lr, betas=(self.opt.beta1, 0.999))
+        self.w_fra = 1
+        self.w_app = 1
+        self.w_lat = 1
 
-    ##
-    def forward_g(self):
-        """ Forward propagate through netG
-        """
-        self.fake, self.latent_i, self.latent_o = self.netg(self.input)
+        super().__init__(*args, **kwargs)
 
-    ##
-    def forward_d(self):
-        """ Forward propagate through netD
-        """
-        self.pred_real, self.feat_real = self.netd(self.input)
-        self.pred_fake, self.feat_fake = self.netd(self.fake.detach())
+    def initialize_optimizer(self, *_, **__):
+        args, kwargs = self.get_params_for_optimizer(
+            'optimizer_gen', self.module_.generator.named_parameters())
+        self.optimizer_gen_ = self.optimizer_gen(*args, **kwargs)
 
-    ##
-    def backward_g(self):
-        """ Backpropagate through netG
-        """ 
+        args, kwargs = self.get_params_for_optimizer(
+            'optimizer_dis', self.module_.discriminator.named_parameters())
+        self.optimizer_dis_ = self.optimizer_dis(*args, **kwargs)
 
-        self.err_g_fra = self.l_fra(self.pred_real, ones_like(self.pred_real, dtype=torch.float32, device=self.device).fill_(1.0))
-        self.err_g_app = self.l_app(self.input, self.fake)
-        self.err_g_lat = self.l_lat(self.latent_i, self.latent_o)
-        self.err_g = self.err_g_fra * self.opt.w_fra + \
-                     self.err_g_app * self.opt.w_app + \
-                     self.err_g_lat * self.opt.w_lat
-        self.err_g.backward(retain_graph=True)
+        return self
+    
+    def validation_step(self, Xi, yi, **fit_params):
+        raise NotImplementedError
+    
+    def train_step(self, Xi, yi=None, **fit_params):
+        Xi = to_tensor(Xi, device=self.device)
+        discriminator = self.module_.discriminator
+        generator = self.module_.generator
+        
+        print(Xi)
+        
+        fake, latent_i, latent_o = generator(Xi)
 
-    ##
-    def backward_d(self):
-        """ Backpropagate through netD
-        """
-        self.err_d = self.l_dis(self.netd(self.input)[1], self.netd(self.fake)[1])
+        pred_real, feat_real = discriminator(Xi)
+        pred_fake, feat_fake = discriminator(fake.detach())
 
-        # Backward-Pass
-        self.err_d.backward()
+        label_real = ones_like(pred_real, dtype=torch.float32, device=self.device).fill_(1.0)
 
-    ##
-    def reinit_d(self):
-        """ Re-initialize the weights of netD
-        """
-        self.netd.apply(weights_init)
-        print('   Reloading net d')
+        # update discriminator
+        discriminator.zero_grad()
+        loss_dis = self.l_dis(feat_real, feat_fake)
+        loss_dis.backward(retain_graph=True)  #solve 
+        self.optimizer_dis_.step()
 
-    def optimize_params(self):
-        """ Forwardpass, Loss Computation and Backwardpass.
-        """
-        # Forward-pass
-        self.forward_g()
-        self.forward_d()
+        generator.zero_grad()
+        loss_gen_fra = self.l_fra(pred_real, label_real)
+        loss_gen_app = self.l_app(Xi, fake)
+        loss_gen_lat = self.l_lat(latent_i, latent_o)
+        loss_gen = loss_gen_fra * self.w_fra + \
+                   loss_gen_app * self.w_app + \
+                   loss_gen_lat * self.w_lat
+        loss_gen.backward(retain_graph=True)
+        self.optimizer_gen_.step()
 
-        # Backward-pass
-        # netg
-        self.optimizer_g.zero_grad()
-        self.backward_g()
-        self.optimizer_g.step()
 
-        # netd
-        self.optimizer_d.zero_grad()
-        self.backward_d()
-        self.optimizer_d.step()
-        if self.err_d.item() < 1e-5: self.reinit_d()
+        if loss_dis.item() < 1e-5:
+            discriminator.apply(weights_init)
+            print('Reloading discriminator')
+
+        
+        self.history.record_batch('loss_dis', loss_dis.item())
+        self.history.record_batch('loss_gen', loss_gen.item())
+
+        self.history.record_batch('loss_gen_fra', loss_gen_fra.item())
+        self.history.record_batch('loss_gen_app', loss_gen_app.item())
+        self.history.record_batch('loss_gen_lat', loss_gen_lat.item())
+        
+        
+        return {
+            'y_pred': fake,
+            'loss': loss_dis + loss_gen,
+        }

@@ -160,7 +160,7 @@ class ArrayReshaper(TransformerMixin, BaseEstimator):
         X_ = X.copy()
         
         X_ = [array.reshape(self.shape) for array in X_]
-        X_ = np.array(X_)
+        X_ = np.array(X_, dtype = np.float32)
         
         return X_
 

@@ -140,9 +140,9 @@ class NetD(nn.Module):
     DISCRIMINATOR NETWORK
     """
 
-    def __init__(self, opt):
+    def __init__(self, isize, nz, nc, ndf, ngpu, n_extra_layers=0):
         super(NetD, self).__init__()
-        model = Encoder(opt.isize, 1, opt.nc, opt.ngf, opt.ngpu, opt.extralayers)
+        model = Encoder(isize, nz, nc, ndf, ngpu, n_extra_layers)
         layers = list(model.main.children())
 
         self.features = nn.Sequential(*layers[:-1])
@@ -163,11 +163,11 @@ class NetG(nn.Module):
     GENERATOR NETWORK
     """
 
-    def __init__(self, opt):
+    def __init__(self, isize, nz, nc, ngf, ngpu, n_extra_layers=0):
         super(NetG, self).__init__()
-        self.encoder1 = Encoder(opt.isize, opt.nz, opt.nc, opt.ngf, opt.ngpu, opt.extralayers)
-        self.decoder = Decoder(opt.isize, opt.nz, opt.nc, opt.ngf, opt.ngpu, opt.extralayers)
-        self.encoder2 = Encoder(opt.isize, opt.nz, opt.nc, opt.ngf, opt.ngpu, opt.extralayers)
+        self.encoder1 = Encoder(isize, nz, nc, ngf, ngpu, n_extra_layers)
+        self.decoder = Decoder(isize, nz, nc, ngf, ngpu, n_extra_layers)
+        self.encoder2 = Encoder(isize, nz, nc, ngf, ngpu, n_extra_layers)
 
     def forward(self, x):
         latent_i = self.encoder1(x)
