@@ -47,7 +47,7 @@ class Ganomaly(nn.Module):
         self.l_fra = nn.BCELoss()
         self.l_app = nn.L1Loss()
         self.l_lat = l2_loss
-        self.l_dis = l2_loss
+        self.l_dis = nn.L1Loss()
 
         self.discriminator = NetD(
             isize=self.isize,
@@ -79,12 +79,12 @@ class Ganomaly(nn.Module):
         sz = latent_i.size()
         app = (X - fake).view(si[0], si[1] * si[2] * si[3])
         lat = (latent_i - latent_o).view(sz[0], sz[1] * sz[2] * sz[3])
-        app = torch.mean(torch.pow(app, 2), dim=1)
+        app = torch.mean(torch.abs(app), dim=1)
         lat = torch.mean(torch.pow(lat, 2), dim=1)
         error = self.w_lambda * app + (1 - self.w_lambda) * lat
 
 
-        return error.reshape(error.size(0)).detach().numpy()
+        return error.reshape(error.size(0))
 
 class GanomalyNet(NeuralNet):
     def __init__(self, *args, optimizer_gen, optimizer_dis, **kwargs):
