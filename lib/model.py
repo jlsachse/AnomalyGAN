@@ -29,7 +29,7 @@ class Ganomaly(nn.Module):
     @property
     def name(self): return 'Ganomaly'
 
-    def __init__(self, isize, nz, nc, ndf, ngf, ngpu, n_extra_layers=0, w_fra = 1, w_app = 1, w_lat = 1):
+    def __init__(self, isize, nz, nc, ndf, ngf, ngpu, n_extra_layers=0, w_fra = 1, w_app = 1, w_lat = 1, w_lambda = 0.5):
         super().__init__()
         
         self.isize = isize
@@ -42,6 +42,12 @@ class Ganomaly(nn.Module):
         self.w_app = w_app
         self.w_lat = w_lat
         self.n_extra_layers = n_extra_layers
+        self.w_lambda = w_lambda
+
+        self.l_fra = nn.BCELoss()
+        self.l_app = nn.L1Loss()
+        self.l_lat = l2_loss
+        self.l_dis = l2_loss
 
         self.discriminator = NetD(
             isize=self.isize,
@@ -63,23 +69,29 @@ class Ganomaly(nn.Module):
         self.generator.apply(weights_init)
 
 
-    def forward(self, X, y=None):
+    def forward(self, X, y=None): #lambda could also be placed here
         # general forward method just returns fake images
-        return self.generator(X)
+
+        fake, latent_i, latent_o = self.generator(X)
+
+        si = X.size()
+        sz = latent_i.size()
+        app = (X - fake).view(si[0], si[1] * si[2] * si[3])
+        lat = (latent_i - latent_o).view(sz[0], sz[1] * sz[2] * sz[3])
+        app = torch.mean(torch.pow(app, 2), dim=1)
+        lat = torch.mean(torch.pow(lat, 2), dim=1)
+        error = self.w_lambda * app + (1 - self.w_lambda) * lat
+
+
+        return error.reshape(error.size(0))
+
+
+        
 
 class GanomalyNet(NeuralNet):
     def __init__(self, *args, optimizer_gen, optimizer_dis, **kwargs):
         self.optimizer_gen = optimizer_gen
         self.optimizer_dis = optimizer_dis
-
-        self.l_fra = nn.BCELoss()
-        self.l_app = nn.L1Loss()
-        self.l_lat = l2_loss
-        self.l_dis = l2_loss
-
-        self.w_fra = 1
-        self.w_app = 1
-        self.w_lat = 1
 
         super().__init__(*args, **kwargs)
 
@@ -102,8 +114,6 @@ class GanomalyNet(NeuralNet):
         discriminator = self.module_.discriminator
         generator = self.module_.generator
         
-        print(Xi)
-        
         fake, latent_i, latent_o = generator(Xi)
 
         pred_real, feat_real = discriminator(Xi)
@@ -112,21 +122,25 @@ class GanomalyNet(NeuralNet):
         label_real = ones_like(pred_real, dtype=torch.float32, device=self.device).fill_(1.0)
 
         # update discriminator
-        discriminator.zero_grad()
-        loss_dis = self.l_dis(feat_real, feat_fake)
-        loss_dis.backward(retain_graph=True)  #solve 
-        self.optimizer_dis_.step()
+        
+        loss_dis = self.module_.l_dis(feat_real, feat_fake)
+        
+        
+        loss_gen_fra = self.module_.l_fra(pred_real, label_real)
+        loss_gen_app = self.module_.l_app(Xi, fake)
+        loss_gen_lat = self.module_.l_lat(latent_i, latent_o)
+        loss_gen = loss_gen_fra * self.module_.w_fra + \
+                   loss_gen_app * self.module_.w_app + \
+                   loss_gen_lat * self.module_.w_lat
 
-        generator.zero_grad()
-        loss_gen_fra = self.l_fra(pred_real, label_real)
-        loss_gen_app = self.l_app(Xi, fake)
-        loss_gen_lat = self.l_lat(latent_i, latent_o)
-        loss_gen = loss_gen_fra * self.w_fra + \
-                   loss_gen_app * self.w_app + \
-                   loss_gen_lat * self.w_lat
+        loss_dis.backward(retain_graph=True)  #solve 
         loss_gen.backward(retain_graph=True)
+
+        self.optimizer_dis_.step()
         self.optimizer_gen_.step()
 
+        self.optimizer_dis_.zero_grad()
+        self.optimizer_gen_.zero_grad()
 
         if loss_dis.item() < 1e-5:
             discriminator.apply(weights_init)
@@ -145,3 +159,30 @@ class GanomalyNet(NeuralNet):
             'y_pred': fake,
             'loss': loss_dis + loss_gen,
         }
+
+    def score(self, X):
+        X = to_tensor(X, device=self.device)
+
+        discriminator = self.module_.discriminator
+        generator = self.module_.generator
+
+        fake, latent_i, latent_o = generator(X)
+
+        pred_real, feat_real = discriminator(X)
+        pred_fake, feat_fake = discriminator(fake.detach())
+
+        label_real = ones_like(pred_real, dtype=torch.float32, device=self.device).fill_(1.0)
+
+        # update discriminator
+        
+        loss_dis = self.module_.l_dis(feat_real, feat_fake)
+        
+        
+        loss_gen_fra = self.module_.l_fra(pred_real, label_real)
+        loss_gen_app = self.module_.l_app(X, fake)
+        loss_gen_lat = self.module_.l_lat(latent_i, latent_o)
+        loss_gen = loss_gen_fra * self.module_.w_fra + \
+                   loss_gen_app * self.module_.w_app + \
+                   loss_gen_lat * self.module_.w_lat
+
+        return loss_gen
