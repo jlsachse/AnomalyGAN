@@ -71,6 +71,7 @@ class Ganomaly(nn.Module):
 
     def forward(self, X, y=None): #lambda could also be placed here
         # general forward method just returns fake images
+        # repair loss
 
         fake, latent_i, latent_o = self.generator(X)
 
@@ -83,10 +84,7 @@ class Ganomaly(nn.Module):
         error = self.w_lambda * app + (1 - self.w_lambda) * lat
 
 
-        return error.reshape(error.size(0))
-
-
-        
+        return error.reshape(error.size(0)).detach().numpy()
 
 class GanomalyNet(NeuralNet):
     def __init__(self, *args, optimizer_gen, optimizer_dis, **kwargs):
@@ -115,6 +113,10 @@ class GanomalyNet(NeuralNet):
         generator = self.module_.generator
         
         fake, latent_i, latent_o = generator(Xi)
+
+        self.module_.fake = fake
+        self.module_.latent_i = fake
+        self.module_.latent_o = fake
 
         pred_real, feat_real = discriminator(Xi)
         pred_fake, feat_fake = discriminator(fake.detach())
@@ -153,7 +155,6 @@ class GanomalyNet(NeuralNet):
         self.history.record_batch('loss_gen_fra', loss_gen_fra.item())
         self.history.record_batch('loss_gen_app', loss_gen_app.item())
         self.history.record_batch('loss_gen_lat', loss_gen_lat.item())
-        
         
         return {
             'y_pred': fake,
