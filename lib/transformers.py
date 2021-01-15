@@ -4,7 +4,7 @@ import numpy as np
 
 class DataSelector(TransformerMixin, BaseEstimator):
 
-    def __init__(self, columns = 'all', **column_values):
+    def __init__(self, columns = 'all', column_values = {}):
         self.columns = columns
         self.column_values = column_values
 

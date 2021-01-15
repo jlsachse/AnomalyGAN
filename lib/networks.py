@@ -30,7 +30,6 @@ class Encoder(nn.Module):
     def __init__(self, isize, nz, nc, ndf, ngpu, n_extra_layers=0, add_final_conv=True):
         super(Encoder, self).__init__()
         self.ngpu = ngpu
-        assert isize % 16 == 0, "isize has to be a multiple of 16"
 
         main = nn.Sequential()
         # input is nc x isize x isize
@@ -39,15 +38,6 @@ class Encoder(nn.Module):
         main.add_module('initial-relu-{0}'.format(ndf),
                         nn.LeakyReLU(0.2, inplace=True))
         csize, cndf = isize / 2, ndf
-
-        # Extra layers
-        for t in range(n_extra_layers):
-            main.add_module('extra-layers-{0}-{1}-conv'.format(t, cndf),
-                            nn.Conv2d(cndf, cndf, 3, 1, 1, bias=False))
-            main.add_module('extra-layers-{0}-{1}-batchnorm'.format(t, cndf),
-                            nn.BatchNorm2d(cndf))
-            main.add_module('extra-layers-{0}-{1}-relu'.format(t, cndf),
-                            nn.LeakyReLU(0.2, inplace=True))
 
         while csize > 4:
             in_feat = cndf
@@ -84,7 +74,6 @@ class Decoder(nn.Module):
     def __init__(self, isize, nz, nc, ngf, ngpu, n_extra_layers=0):
         super(Decoder, self).__init__()
         self.ngpu = ngpu
-        assert isize % 16 == 0, "isize has to be a multiple of 16"
 
         cngf, tisize = ngf // 2, 4
         while tisize != isize:
@@ -110,15 +99,6 @@ class Decoder(nn.Module):
                             nn.ReLU(True))
             cngf = cngf // 2
             csize = csize * 2
-
-        # Extra layers
-        for t in range(n_extra_layers):
-            main.add_module('extra-layers-{0}-{1}-conv'.format(t, cngf),
-                            nn.Conv2d(cngf, cngf, 3, 1, 1, bias=False))
-            main.add_module('extra-layers-{0}-{1}-batchnorm'.format(t, cngf),
-                            nn.BatchNorm2d(cngf))
-            main.add_module('extra-layers-{0}-{1}-relu'.format(t, cngf),
-                            nn.ReLU(True))
 
         main.add_module('final-{0}-{1}-convt'.format(cngf, nc),
                         nn.ConvTranspose2d(cngf, nc, 4, 2, 1, bias=False))
