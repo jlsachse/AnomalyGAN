@@ -28,7 +28,7 @@ class Encoder(nn.Module):
     """
 
     def __init__(self, isize, nz, nc, ndf, ngpu, n_extra_layers=0, add_final_conv=True):
-        super(Encoder, self).__init__()
+        super().__init__()
         self.ngpu = ngpu
 
         main = nn.Sequential()
@@ -72,7 +72,7 @@ class Decoder(nn.Module):
     DCGAN DECODER NETWORK
     """
     def __init__(self, isize, nz, nc, ngf, ngpu, n_extra_layers=0):
-        super(Decoder, self).__init__()
+        super().__init__()
         self.ngpu = ngpu
 
         cngf, tisize = ngf // 2, 4
@@ -121,7 +121,7 @@ class NetD(nn.Module):
     """
 
     def __init__(self, isize, nz, nc, ndf, ngpu, n_extra_layers=0):
-        super(NetD, self).__init__()
+        super().__init__()
         model = Encoder(isize, nz, nc, ndf, ngpu, n_extra_layers)
         layers = list(model.main.children())
 
@@ -144,7 +144,7 @@ class NetG(nn.Module):
     """
 
     def __init__(self, isize, nz, nc, ngf, ngpu, n_extra_layers=0):
-        super(NetG, self).__init__()
+        super().__init__()
         self.encoder1 = Encoder(isize, nz, nc, ngf, ngpu, n_extra_layers)
         self.decoder = Decoder(isize, nz, nc, ngf, ngpu, n_extra_layers)
         self.encoder2 = Encoder(isize, nz, nc, ngf, ngpu, n_extra_layers)
