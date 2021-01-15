@@ -27,34 +27,57 @@ class Encoder(nn.Module):
     DCGAN ENCODER NETWORK
     """
 
-    def __init__(self, isize, nz, nc, ndf, ngpu, n_extra_layers=0, add_final_conv=True):
+    def __init__(self, isize, nz, nc, ndf, ngpu, n_extra_layers=0, add_final_conv=True, is2d = True):
         super().__init__()
         self.ngpu = ngpu
 
         main = nn.Sequential()
         # input is nc x isize x isize
-        main.add_module('initial-conv-{0}-{1}'.format(nc, ndf),
-                        nn.Conv2d(nc, ndf, 4, 2, 1, bias=False))
-        main.add_module('initial-relu-{0}'.format(ndf),
-                        nn.LeakyReLU(0.2, inplace=True))
-        csize, cndf = isize / 2, ndf
 
-        while csize > 4:
-            in_feat = cndf
-            out_feat = cndf * 2
-            main.add_module('pyramid-{0}-{1}-conv'.format(in_feat, out_feat),
-                            nn.Conv2d(in_feat, out_feat, 4, 2, 1, bias=False))
-            main.add_module('pyramid-{0}-batchnorm'.format(out_feat),
-                            nn.BatchNorm2d(out_feat))
-            main.add_module('pyramid-{0}-relu'.format(out_feat),
+        if is2d:
+            main.add_module('initial-conv-{0}-{1}'.format(nc, ndf),
+                            nn.Conv2d(nc, ndf, 4, 2, 1, bias=False))
+            main.add_module('initial-relu-{0}'.format(ndf),
                             nn.LeakyReLU(0.2, inplace=True))
-            cndf = cndf * 2
-            csize = csize / 2
+            csize, cndf = isize / 2, ndf
 
-        # state size. K x 4 x 4
-        if add_final_conv:
-            main.add_module('final-{0}-{1}-conv'.format(cndf, 1),
-                            nn.Conv2d(cndf, nz, 4, 1, 0, bias=False))
+            while csize > 4:
+                in_feat = cndf
+                out_feat = cndf * 2
+                main.add_module('pyramid-{0}-{1}-conv'.format(in_feat, out_feat),
+                                nn.Conv2d(in_feat, out_feat, 4, 2, 1, bias=False))
+                main.add_module('pyramid-{0}-batchnorm'.format(out_feat),
+                                nn.BatchNorm2d(out_feat))
+                main.add_module('pyramid-{0}-relu'.format(out_feat),
+                                nn.LeakyReLU(0.2, inplace=True))
+                cndf = cndf * 2
+                csize = csize / 2
+
+            # state size. K x 4 x 4
+            if add_final_conv:
+                main.add_module('final-{0}-{1}-conv'.format(cndf, 1),
+                                nn.Conv2d(cndf, nz, 4, 1, 0, bias=False))
+
+        else:
+            main.add_module('initial-{0}-{1}-convt'.format(nc, cngf),
+                            nn.Conv1d(nc, cngf, 16, 1, 0, bias=False))
+            main.add_module('initial-relu-{0}'.format(ndf),
+                            nn.LeakyReLU(0.2, inplace=True))
+
+            csize, _ = 4, cngf
+            while csize < isize // 2:
+                main.add_module('pyramid-{0}-{1}-convt'.format(cngf, cngf // 2),
+                                nn.Conv1d(cngf, cngf // 2, 16, 2, 1, bias=False))
+                main.add_module('pyramid-phase-{0}'.format(nc, cngf),
+                                PhaseShuffle(4))
+                main.add_module('pyramid-relu-{0}'.format(ndf),
+                            nn.LeakyReLU(0.2, inplace=True))
+                cngf = cngf // 2
+                csize = csize * 2
+
+            if add_final_conv:
+                main.add_module('final-{0}-{1}-convt'.format(cngf, nc),
+                                nn.Conv1d(cngf, nz, 16, 2, 1, bias=False))
 
         self.main = main
 
@@ -71,7 +94,7 @@ class Decoder(nn.Module):
     """
     DCGAN DECODER NETWORK
     """
-    def __init__(self, isize, nz, nc, ngf, ngpu, n_extra_layers=0):
+    def __init__(self, isize, nz, nc, ngf, ngpu, n_extra_layers=0, is2d = True):
         super().__init__()
         self.ngpu = ngpu
 
@@ -79,31 +102,56 @@ class Decoder(nn.Module):
         while tisize != isize:
             cngf = cngf * 2
             tisize = tisize * 2
-
+        
         main = nn.Sequential()
-        # input is Z, going into a convolution
-        main.add_module('initial-{0}-{1}-convt'.format(nz, cngf),
-                        nn.ConvTranspose2d(nz, cngf, 4, 1, 0, bias=False))
-        main.add_module('initial-{0}-batchnorm'.format(cngf),
-                        nn.BatchNorm2d(cngf))
-        main.add_module('initial-{0}-relu'.format(cngf),
-                        nn.ReLU(True))
 
-        csize, _ = 4, cngf
-        while csize < isize // 2:
-            main.add_module('pyramid-{0}-{1}-convt'.format(cngf, cngf // 2),
-                            nn.ConvTranspose2d(cngf, cngf // 2, 4, 2, 1, bias=False))
-            main.add_module('pyramid-{0}-batchnorm'.format(cngf // 2),
-                            nn.BatchNorm2d(cngf // 2))
-            main.add_module('pyramid-{0}-relu'.format(cngf // 2),
+        if is2d:
+            
+            # input is Z, going into a convolution
+            main.add_module('initial-{0}-{1}-convt'.format(nz, cngf),
+                            nn.ConvTranspose2d(nz, cngf, 4, 1, 0, bias=False))
+            main.add_module('initial-{0}-batchnorm'.format(cngf),
+                            nn.BatchNorm2d(cngf))
+            main.add_module('initial-{0}-relu'.format(cngf),
                             nn.ReLU(True))
-            cngf = cngf // 2
-            csize = csize * 2
 
-        main.add_module('final-{0}-{1}-convt'.format(cngf, nc),
-                        nn.ConvTranspose2d(cngf, nc, 4, 2, 1, bias=False))
-        main.add_module('final-{0}-tanh'.format(nc),
-                        nn.Tanh())
+            csize, _ = 4, cngf
+            while csize < isize // 2:
+                main.add_module('pyramid-{0}-{1}-convt'.format(cngf, cngf // 2),
+                                nn.ConvTranspose2d(cngf, cngf // 2, 4, 2, 1, bias=False))
+                main.add_module('pyramid-{0}-batchnorm'.format(cngf // 2),
+                                nn.BatchNorm2d(cngf // 2))
+                main.add_module('pyramid-{0}-relu'.format(cngf // 2),
+                                nn.ReLU(True))
+                cngf = cngf // 2
+                csize = csize * 2
+
+            main.add_module('final-{0}-{1}-convt'.format(cngf, nc),
+                            nn.ConvTranspose2d(cngf, nc, 4, 2, 1, bias=False))
+            main.add_module('final-{0}-tanh'.format(nc),
+                            nn.Tanh())
+
+        else:
+            main.add_module('initial-{0}-{1}-convt'.format(nz, cngf),
+                            nn.ConvTranspose1d(nz, cngf, 16, 1, 0, bias=False))
+            main.add_module('initial-{0}-relu'.format(cngf),
+                            nn.ReLU(True))
+
+            csize, _ = 4, cngf
+            while csize < isize // 2:
+                main.add_module('pyramid-{0}-{1}-convt'.format(cngf, cngf // 2),
+                                nn.ConvTranspose1d(cngf, cngf // 2, 16, 2, 1, bias=False))
+                main.add_module('pyramid-{0}-relu'.format(cngf // 2),
+                                nn.ReLU(True))
+                cngf = cngf // 2
+                csize = csize * 2
+
+            main.add_module('final-{0}-{1}-convt'.format(cngf, nc),
+                            nn.ConvTranspose1d(cngf, nc, 16, 2, 1, bias=False))
+            main.add_module('final-{0}-tanh'.format(nc),
+                            nn.Tanh())
+
+       
         self.main = main
 
     def forward(self, input):
@@ -120,9 +168,9 @@ class NetD(nn.Module):
     DISCRIMINATOR NETWORK
     """
 
-    def __init__(self, isize, nz, nc, ndf, ngpu, n_extra_layers=0):
+    def __init__(self, isize, nz, nc, ndf, ngpu, n_extra_layers=0, is2d = True):
         super().__init__()
-        model = Encoder(isize, nz, nc, ndf, ngpu, n_extra_layers)
+        model = Encoder(isize, nz, nc, ndf, ngpu, n_extra_layers, is2d)
         layers = list(model.main.children())
 
         self.features = nn.Sequential(*layers[:-1])
@@ -143,14 +191,56 @@ class NetG(nn.Module):
     GENERATOR NETWORK
     """
 
-    def __init__(self, isize, nz, nc, ngf, ngpu, n_extra_layers=0):
+    def __init__(self, isize, nz, nc, ngf, ngpu, n_extra_layers=0, is2d = True):
         super().__init__()
-        self.encoder1 = Encoder(isize, nz, nc, ngf, ngpu, n_extra_layers)
-        self.decoder = Decoder(isize, nz, nc, ngf, ngpu, n_extra_layers)
-        self.encoder2 = Encoder(isize, nz, nc, ngf, ngpu, n_extra_layers)
+        self.encoder1 = Encoder(isize, nz, nc, ngf, ngpu, n_extra_layers, is2d)
+        self.decoder = Decoder(isize, nz, nc, ngf, ngpu, n_extra_layers, is2d)
+        self.encoder2 = Encoder(isize, nz, nc, ngf, ngpu, n_extra_layers, is2d)
 
     def forward(self, x):
         latent_i = self.encoder1(x)
         gen_imag = self.decoder(latent_i)
         latent_o = self.encoder2(gen_imag)
         return gen_imag, latent_i, latent_o
+
+
+class PhaseShuffle(nn.Module):
+    """
+    Performs phase shuffling, i.e. shifting feature axis of a 3D tensor
+    by a random integer in {-n, n} and performing reflection padding where
+    necessary.
+    """
+    # Copied from https://github.com/jtcramer/wavegan/blob/master/wavegan.py#L8
+    def __init__(self, shift_factor):
+        super(PhaseShuffle, self).__init__()
+        self.shift_factor = shift_factor
+
+    def forward(self, x):
+        if self.shift_factor == 0:
+            return x
+        # uniform in (L, R)
+        k_list = torch.Tensor(x.shape[0]).random_(0, 2 * self.shift_factor + 1) - self.shift_factor
+        k_list = k_list.numpy().astype(int)
+
+        # Combine sample indices into lists so that less shuffle operations
+        # need to be performed
+        k_map = {}
+        for idx, k in enumerate(k_list):
+            k = int(k)
+            if k not in k_map:
+                k_map[k] = []
+            k_map[k].append(idx)
+
+        # Make a copy of x for our output
+        x_shuffle = x.clone()
+
+        # Apply shuffle to each sample
+        for k, idxs in k_map.items():
+            if k > 0:
+                x_shuffle[idxs] = F.pad(x[idxs][..., :-k], (k, 0), mode='reflect')
+            else:
+                x_shuffle[idxs] = F.pad(x[idxs][..., -k:], (0, -k), mode='reflect')
+
+        assert x_shuffle.shape == x.shape, "{}, {}".format(x_shuffle.shape,
+                                                       x.shape)
+        return x_shuffle

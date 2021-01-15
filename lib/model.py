@@ -29,7 +29,7 @@ class Ganomaly(nn.Module):
     @property
     def name(self): return 'Ganomaly'
 
-    def __init__(self, isize, nz, nc, ndf, ngf, ngpu, n_extra_layers=0, w_fra = 1, w_app = 1, w_lat = 1, w_lambda = 0.5):
+    def __init__(self, isize, nz, nc, ndf, ngf, ngpu, n_extra_layers=0, is2d = True, w_fra = 1, w_app = 1, w_lat = 1, w_lambda = 0.5):
         super().__init__()
         
         self.isize = isize
@@ -43,6 +43,7 @@ class Ganomaly(nn.Module):
         self.w_lat = w_lat
         self.n_extra_layers = n_extra_layers
         self.w_lambda = w_lambda
+        self.is2d = is2d
 
         self.l_fra = nn.BCELoss()
         self.l_app = nn.L1Loss()
@@ -55,7 +56,8 @@ class Ganomaly(nn.Module):
             nc=self.nc,
             ndf=self.ndf,
             ngpu=self.ngpu,
-            n_extra_layers=self.n_extra_layers
+            n_extra_layers=self.n_extra_layers,
+            is2d = self.is2d
         )
         self.discriminator.apply(weights_init)
         self.generator = NetG(
@@ -64,7 +66,8 @@ class Ganomaly(nn.Module):
             nc=self.nc,
             ngf=self.ngf,
             ngpu=self.ngpu,
-            n_extra_layers=self.n_extra_layers
+            n_extra_layers=self.n_extra_layers, 
+            is2d = self.is2d
         )
         self.generator.apply(weights_init)
 
