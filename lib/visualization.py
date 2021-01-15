@@ -19,9 +19,9 @@ def extract_images(net, dataset_train):
 def extract_mean_score(net, dataset_train):
   
     X = dataset_train.X
-    X = tensor(X)
+    X = tensor(X, device = net.device)
     
-    scores = net.module_.forward(X).detach().numpy()
+    scores = net.module_.forward(X).cpu().detach().numpy()
     mean_score = np.mean(scores)
 
     return mean_score
