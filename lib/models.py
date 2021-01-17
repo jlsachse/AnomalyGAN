@@ -16,22 +16,25 @@ import torch.nn as nn
 import torch.utils.data
 import torchvision.utils as vutils
 
-from lib.networks import NetG, NetD, weights_init
+from lib.networks import GeneratorNet1d, GeneratorNet2d, DiscriminatorNet1d, DiscriminatorNet2d, GeneratorNetFE, DiscriminatorNetFE, weights_init
 from lib.loss import l2_loss
 
 from skorch import NeuralNet
 from skorch.utils import to_tensor
-##
-class Ganomaly(nn.Module):
+
+
+
+class Ganomaly1d(nn.Module):
     """GANomaly Class
     """
 
     @property
     def name(self): return 'Ganomaly'
 
-    def __init__(self, isize, nz, nc, ndf, ngf, ngpu, n_extra_layers=0, is2d = True, w_fra = 1, w_app = 1, w_lat = 1, w_lambda = 0.5):
+    def __init__(self, isize, nz, nc, ndf, ngf, ngpu, w_fra = 1, w_app = 1, w_lat = 1, w_lambda = 0.5):
         super().__init__()
-        
+    
+
         self.isize = isize
         self.nc = nc
         self.nz = nz
@@ -41,33 +44,27 @@ class Ganomaly(nn.Module):
         self.w_fra = w_fra
         self.w_app = w_app
         self.w_lat = w_lat
-        self.n_extra_layers = n_extra_layers
         self.w_lambda = w_lambda
-        self.is2d = is2d
 
         self.l_fra = nn.BCELoss()
         self.l_app = nn.L1Loss()
         self.l_lat = l2_loss
         self.l_dis = nn.L1Loss()
 
-        self.discriminator = NetD(
+        self.discriminator = DiscriminatorNet1d(
             isize=self.isize,
             nz=self.nz,
             nc=self.nc,
             ndf=self.ndf,
-            ngpu=self.ngpu,
-            n_extra_layers=self.n_extra_layers,
-            is2d = self.is2d
+            ngpu=self.ngpu
         )
         self.discriminator.apply(weights_init)
-        self.generator = NetG(
+        self.generator = GeneratorNet1d(
             isize=self.isize,
             nz=self.nz,
             nc=self.nc,
             ngf=self.ngf,
-            ngpu=self.ngpu,
-            n_extra_layers=self.n_extra_layers, 
-            is2d = self.is2d
+            ngpu=self.ngpu
         )
         self.generator.apply(weights_init)
 
@@ -80,14 +77,136 @@ class Ganomaly(nn.Module):
 
         si = X.size()
         sz = latent_i.size()
-        app = (X - fake).view(si[0], si[1] * si[2] * si[3])
-        lat = (latent_i - latent_o).view(sz[0], sz[1] * sz[2] * sz[3])
+
+        app = (X - fake).view(si[0], si[1] * si[2])
+        lat = (latent_i - latent_o).view(sz[0], sz[1] * sz[2])
+        
         app = torch.mean(torch.abs(app), dim=1)
         lat = torch.mean(torch.pow(lat, 2), dim=1)
         error = self.w_lambda * app + (1 - self.w_lambda) * lat
 
+        return error.reshape(error.size(0))
+
+
+
+class Ganomaly2d(nn.Module):
+    """GANomaly Class
+    """
+
+    @property
+    def name(self): return 'Ganomaly'
+
+    def __init__(self, isize, nz, nc, ndf, ngf, ngpu, w_fra = 1, w_app = 1, w_lat = 1, w_lambda = 0.5):
+        super().__init__()
+        
+
+        self.isize = isize
+        self.nc = nc
+        self.nz = nz
+        self.ndf = ndf
+        self.ngf = ngf
+        self.ngpu = ngpu
+        self.w_fra = w_fra
+        self.w_app = w_app
+        self.w_lat = w_lat
+        self.w_lambda = w_lambda
+
+        self.l_fra = nn.BCELoss()
+        self.l_app = nn.L1Loss()
+        self.l_lat = l2_loss
+        self.l_dis = nn.L1Loss()
+
+        self.discriminator = DiscriminatorNet2d(
+            isize=self.isize,
+            nz=self.nz,
+            nc=self.nc,
+            ndf=self.ndf,
+            ngpu=self.ngpu
+        )
+        self.discriminator.apply(weights_init)
+        self.generator = GeneratorNet2d(
+            isize=self.isize,
+            nz=self.nz,
+            nc=self.nc,
+            ngf=self.ngf,
+            ngpu=self.ngpu
+        )
+        self.generator.apply(weights_init)
+
+
+    def forward(self, X, y=None): #lambda could also be placed here
+        # general forward method just returns fake images
+        # repair loss
+
+        fake, latent_i, latent_o = self.generator(X)
+
+        si = X.size()
+        sz = latent_i.size()
+
+        app = (X - fake).view(si[0], si[1] * si[2] * sz[3])
+        lat = (latent_i - latent_o).view(sz[0], sz[1] * sz[2] * sz[3])
+        
+        app = torch.mean(torch.abs(app), dim=1)
+        lat = torch.mean(torch.pow(lat, 2), dim=1)
+        error = self.w_lambda * app + (1 - self.w_lambda) * lat
 
         return error.reshape(error.size(0))
+
+
+
+class GanomalyFE(nn.Module):
+    """GANomaly Class
+    """
+
+    @property
+    def name(self): return 'GanomalyFE'
+
+    def __init__(self, isize, ngpu, w_fra = 1, w_app = 1, w_lat = 1, w_lambda = 0.5):
+        super().__init__()
+        
+        self.isize = isize
+        self.ngpu = ngpu
+        self.w_fra = w_fra
+        self.w_app = w_app
+        self.w_lat = w_lat
+        self.w_lambda = w_lambda
+
+        self.l_fra = nn.BCELoss()
+        self.l_app = nn.L1Loss()
+        self.l_lat = l2_loss
+        self.l_dis = nn.L1Loss()
+
+        self.discriminator = DiscriminatorNetFE(
+            isize=self.isize,
+            ngpu=self.ngpu
+        )
+        self.discriminator.apply(weights_init)
+        self.generator = GeneratorNetFE(
+            isize=self.isize,
+            ngpu=self.ngpu
+        )
+        self.generator.apply(weights_init)
+
+
+    def forward(self, X, y=None): #lambda could also be placed here
+        # general forward method just returns fake images
+        # repair loss
+
+        fake, latent_i, latent_o = self.generator(X)
+
+        si = X.size()
+        sz = latent_i.size()
+
+        app = (X - fake).view(si[0], si[1] * si[2] * sz[3])
+        lat = (latent_i - latent_o).view(sz[0], sz[1] * sz[2] * sz[3])
+        
+        app = torch.mean(torch.abs(app), dim=1)
+        lat = torch.mean(torch.pow(lat, 2), dim=1)
+        error = self.w_lambda * app + (1 - self.w_lambda) * lat
+
+        return error.reshape(error.size(0))
+
+
 
 class GanomalyNet(NeuralNet):
     def __init__(self, *args, optimizer_gen, optimizer_dis, **kwargs):

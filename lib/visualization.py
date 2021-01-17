@@ -10,6 +10,12 @@ def extract_images(net, dataset_train):
     X = tensor(X)
          
     fake, latent_i, latent_o = generator(X)
+    print(fake.shape)
+
+    if len(X.shape) == 3:
+        shape = int(np.sqrt(fake.shape[2]))
+        fake = fake.reshape((-1, 1, shape, shape))
+        X = X.reshape((-1, 1, shape, shape))
     
     X = make_grid(X, nrow=6)
     fake = make_grid(fake, nrow=6)
