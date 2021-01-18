@@ -24,35 +24,58 @@ def weights_init(mod):
 
 
 class Encoder1d(nn.Module):
-    def __init__(self, isize, nz, nc, ndf, ngpu):
+    def __init__(self, input_size, nz, nc, ndf, ngpu):
         super().__init__()
 
         self.ngpu = ngpu
 
-        assert isize in [28, 56]
+        stride = 8 if input_size == 1568 else 4
+        padding = 4 if input_size == 1568 else 6
+
+        n_layers = 0
+
+        while input_size >= 12:
+            n_layers += 1
+            input_size = input_size // 4
+
+        n_intermediate_layers = n_layers - 3 if n_layers >= 3 else 0
+
 
         main = nn.Sequential()
 
+
+
         main.add_module('initial-{0}-{1}-convt'.format(nc, ndf),
-                        nn.Conv1d(nc, ndf, 16, stride=4, padding = 7, bias = False))
+                        nn.Conv1d(nc, ndf, 16, stride=stride, padding = padding, bias = False))
         main.add_module('initial-relu-{0}'.format(ndf),
                         nn.LeakyReLU(0.2, inplace=True))
-        csize, cndf = isize / 2, ndf
 
-        while csize >= 14:
-            in_feat = cndf
-            out_feat = cndf * 2
+
+        for _ in range(n_intermediate_layers):
+            in_feat = ndf
+            out_feat = ndf * 2
             main.add_module('pyramid-{0}-{1}-convt'.format(in_feat, out_feat),
-                            nn.Conv1d(in_feat, out_feat, 16, stride=4, padding = 7, bias = False))
+                            nn.Conv1d(in_feat, out_feat, 16, stride=4, padding = 6, bias = False))
+            main.add_module('pyramid-relu-{0}'.format(out_feat),
+                            nn.LeakyReLU(0.2, inplace=True))
             main.add_module('pyramid-{0}-batchnorm'.format(out_feat),
                             nn.BatchNorm1d(out_feat))
-            main.add_module('pyramid-relu-{0}'.format(out_feat),
-                        nn.LeakyReLU(0.2, inplace=True))
-            cndf = cndf * 2
-            csize = csize / 2
+            ndf = ndf * 2
 
-        main.add_module('final-{0}-{1}-convt'.format(cndf, 1),
-                        nn.Conv1d(cndf, nz, 16, stride=2, padding = 0, bias = False))
+        in_feat = ndf
+        out_feat = ndf * 2
+
+        main.add_module('pyramid-{0}-{1}-convt'.format(in_feat, out_feat),
+                        nn.Conv1d(in_feat, out_feat, 16, stride=4, padding = 0, bias = False))
+        main.add_module('pyramid-relu-{0}'.format(out_feat),
+                    nn.LeakyReLU(0.2, inplace=True))
+        main.add_module('pyramid-{0}-batchnorm'.format(out_feat),
+                        nn.BatchNorm1d(out_feat))
+        
+        ndf = ndf * 2
+
+        main.add_module('final-{0}-{1}-convt'.format(ndf, 1),
+                        nn.Conv1d(ndf, nz, 9, stride=1, padding = 0, bias = False))
 
         self.main = main
 
@@ -68,42 +91,55 @@ class Encoder1d(nn.Module):
 
 
 class Decoder1d(nn.Module):
-    def __init__(self, isize, nz, nc, ngf, ngpu):
+    def __init__(self, input_size, nz, nc, ngf, ngpu):
         super().__init__()
 
         self.ngpu = ngpu
 
-        assert isize in [28, 56]
+        stride = 8 if input_size == 1568 else 4
+        padding = 4 if input_size == 1568 else 6
 
-        cngf = ngf // 2
-        csize = isize
+        n_layers = 0
 
-        while csize >= 7:
-            cngf = cngf * 2
-            csize = csize / 2
+        while input_size >= 12:
+            n_layers += 1
+            input_size = input_size // 4
+
+        n_intermediate_layers = n_layers - 3 if n_layers >= 3 else 0
+
+        cngf = ngf * 2 ** (n_intermediate_layers + 1)
+
         
         main = nn.Sequential()
 
         main.add_module('initial-{0}-{1}-convt'.format(nz, cngf),
-                        nn.ConvTranspose1d(nz, cngf, 16, stride=2, output_padding = 1, bias = False))
-        main.add_module('pyramid-{0}-batchnorm'.format(cngf),
-                        nn.BatchNorm1d(cngf))
+                        nn.ConvTranspose1d(nz, cngf, 9, stride=1, bias = False))
         main.add_module('initial-{0}-relu'.format(cngf),
                         nn.ReLU(True))
+        main.add_module('pyramid-{0}-batchnorm'.format(cngf),
+                        nn.BatchNorm1d(cngf))
 
-        csize, _ = 14, cngf
-        while csize <= isize // 2:
+        main.add_module('pyramid-{0}-{1}-convt'.format(cngf, cngf // 2),
+                        nn.ConvTranspose1d(cngf, cngf // 2, 16, stride=4, padding = 0, output_padding=1, bias = False))
+        main.add_module('pyramid-{0}-relu'.format(cngf // 2),
+                        nn.ReLU(True))
+        main.add_module('pyramid-{0}-batchnorm'.format(cngf // 2),
+                        nn.BatchNorm1d(cngf // 2))
+
+        cngf = cngf // 2
+
+        for _ in range(n_intermediate_layers):
             main.add_module('pyramid-{0}-{1}-convt'.format(cngf, cngf // 2),
-                            nn.ConvTranspose1d(cngf, cngf // 2, 16, stride=4, padding = 7, output_padding = 2, bias = False))
-            main.add_module('pyramid-{0}-batchnorm'.format(cngf // 2),
-                            nn.BatchNorm1d(cngf // 2))
+                            nn.ConvTranspose1d(cngf, cngf // 2, 16, stride=4, padding = 6,  bias = False))
             main.add_module('pyramid-{0}-relu'.format(cngf // 2),
                             nn.ReLU(True))
+            main.add_module('pyramid-{0}-batchnorm'.format(cngf // 2),
+                            nn.BatchNorm1d(cngf // 2))
+
             cngf = cngf // 2
-            csize = csize * 2
 
         main.add_module('final-{0}-{1}-convt'.format(cngf, nc),
-                            nn.ConvTranspose1d(cngf, nc, 16, stride=4, padding = 7, output_padding = 2, bias = False))
+                            nn.ConvTranspose1d(cngf, nc, 16, stride=stride, padding = padding, bias = False))
         main.add_module('final-{0}-tanh'.format(nc),
                             nn.Tanh())
 
@@ -120,11 +156,19 @@ class Decoder1d(nn.Module):
 
 
 class Encoder2d(nn.Module):
-    def __init__(self, isize, nz, nc, ndf, ngpu):
+    def __init__(self, input_size, nz, nc, ndf, ngpu):
         super().__init__()
         self.ngpu = ngpu
 
-        assert isize in [28, 56]
+
+        n_layers = 0
+
+        while input_size >= 3:
+            n_layers += 1
+    
+            input_size = input_size // 2
+
+        n_intermediate_layers = n_layers - 2 if n_layers >= 2 else 0
 
         main = nn.Sequential()
 
@@ -132,22 +176,22 @@ class Encoder2d(nn.Module):
                         nn.Conv2d(nc, ndf, 4, 2, 1, bias=False))
         main.add_module('initial-relu-{0}'.format(ndf),
                         nn.LeakyReLU(0.2, inplace=True))
-        csize, cndf = isize / 2, ndf
 
-        while csize >= 14:
-            in_feat = cndf
-            out_feat = cndf * 2
+        for _ in range(n_intermediate_layers):
+            in_feat = ndf
+            out_feat = ndf * 2
+
             main.add_module('pyramid-{0}-{1}-conv'.format(in_feat, out_feat),
                             nn.Conv2d(in_feat, out_feat, 4, 2, 1, bias=False))
-            main.add_module('pyramid-{0}-batchnorm'.format(out_feat),
-                            nn.BatchNorm2d(out_feat))
             main.add_module('pyramid-{0}-relu'.format(out_feat),
                             nn.LeakyReLU(0.2, inplace=True))
-            cndf = cndf * 2
-            csize = csize / 2
+            main.add_module('pyramid-{0}-batchnorm'.format(out_feat),
+                            nn.BatchNorm2d(out_feat))
+
+            ndf = ndf * 2
         
-        main.add_module('final-{0}-{1}-conv'.format(cndf, 1),
-                        nn.Conv2d(cndf, nz, 4, 1, 0, bias=False))
+        main.add_module('final-{0}-{1}-conv'.format(ndf, 1),
+                        nn.Conv2d(ndf, nz, 3, 1, 0, bias=False))
 
         self.main = main
 
@@ -162,40 +206,50 @@ class Encoder2d(nn.Module):
         
 
 class Decoder2d(nn.Module):
-    def __init__(self, isize, nz, nc, ngf, ngpu):
+    def __init__(self, input_size, nz, nc, ngf, ngpu):
         super().__init__()
-
-        assert isize in [28, 56]
         
         self.ngpu = ngpu
 
-        cngf = ngf // 2
-        csize = isize
+        n_layers = 0
 
-        while csize >= 7:
-            cngf = cngf * 2
-            csize = csize / 2
+        while input_size >= 3:
+            n_layers += 1
+    
+            input_size = input_size // 2
+
+        n_intermediate_layers = n_layers - 3 if n_layers >= 3 else 0
+
+        cngf = ngf * 2 ** (n_intermediate_layers + 1)
         
         main = nn.Sequential()
  
         # input is Z, going into a convolution
         main.add_module('initial-{0}-{1}-convt'.format(nz, cngf),
-                        nn.ConvTranspose2d(nz, cngf, 4, 1, 0, bias=False))
-        main.add_module('initial-{0}-batchnorm'.format(cngf),
-                        nn.BatchNorm2d(cngf))
+                        nn.ConvTranspose2d(nz, cngf, 3, 1, 0, bias=False))
         main.add_module('initial-{0}-relu'.format(cngf),
                         nn.ReLU(True))
+        main.add_module('initial-{0}-batchnorm'.format(cngf),
+                        nn.BatchNorm2d(cngf))
 
-        csize, _ = 14, cngf
-        while csize <= isize // 2:
+        main.add_module('initial-{0}-{1}-convt'.format(cngf, cngf // 2),
+                        nn.ConvTranspose2d(cngf, cngf // 2, 4, 2, 1, output_padding = 1, bias=False))
+        main.add_module('initial-{0}-relu'.format(cngf // 2),
+                        nn.ReLU(True))
+        main.add_module('initial-{0}-batchnorm'.format(cngf // 2),
+                        nn.BatchNorm2d(cngf // 2))
+        
+        cngf = cngf // 2
+
+        for _ in range(n_intermediate_layers):
             main.add_module('pyramid-{0}-{1}-convt'.format(cngf, cngf // 2),
                             nn.ConvTranspose2d(cngf, cngf // 2, 4, 2, 1, bias=False))
-            main.add_module('pyramid-{0}-batchnorm'.format(cngf // 2),
-                            nn.BatchNorm2d(cngf // 2))
             main.add_module('pyramid-{0}-relu'.format(cngf // 2),
                             nn.ReLU(True))
+            main.add_module('pyramid-{0}-batchnorm'.format(cngf // 2),
+                            nn.BatchNorm2d(cngf // 2))
+
             cngf = cngf // 2
-            csize = csize * 2
 
         main.add_module('final-{0}-{1}-convt'.format(cngf, nc),
                         nn.ConvTranspose2d(cngf, nc, 4, 2, 1, bias=False))
@@ -219,18 +273,16 @@ class EncoderFE(nn.Module):
         super().__init__()
         self.ngpu = ngpu
 
-        assert isize == 4
-
         main = nn.Sequential()
 
         main.add_module('initial-conv-1-4',
                         nn.Conv2d(1, 4, 2, 1, bias=False))
-        
-        main.add_module('pyramid-4-batchnorm',
-                        nn.BatchNorm2d(4))
 
         main.add_module('pyramid-4-relu',
                         nn.LeakyReLU(0.2, inplace=True))
+   
+        main.add_module('pyramid-4-batchnorm',
+                        nn.BatchNorm2d(4))
 
         main.add_module('final-conv-4-8',
                         nn.Conv2d(4, 8, 2, 1, bias=False))
@@ -249,8 +301,6 @@ class EncoderFE(nn.Module):
 class DecoderFE(nn.Module):
     def __init__(self, isize, ngpu):
         super().__init__()
-
-        assert isize == 4
         
         self.ngpu = ngpu
         
@@ -377,11 +427,11 @@ class DiscriminatorNetFE(nn.Module):
         model = EncoderFE(isize, ngpu)
         self.features = model.main
 
-        self.features.add_module('pyramid-8-batchnorm',
-                        nn.BatchNorm2d(8))
-
         self.features.add_module('pyramid-8-relu',
                         nn.LeakyReLU(0.2, inplace=True))
+
+        self.features.add_module('pyramid-8-batchnorm',
+                        nn.BatchNorm2d(8))
 
         self.classifier = nn.Sequential()
         self.classifier.add_module('Sigmoid', nn.Sigmoid())

@@ -1,6 +1,8 @@
 from skorch.callbacks import TensorBoard
 from torchvision.utils import make_grid
+import torch.nn.functional as F
 from torch import tensor
+import torch
 import numpy as np
 
 def extract_images(net, dataset_train):
@@ -10,10 +12,13 @@ def extract_images(net, dataset_train):
     X = tensor(X)
          
     fake, latent_i, latent_o = generator(X)
-    print(fake.shape)
 
     if len(X.shape) == 3:
-        shape = int(np.sqrt(fake.shape[2]))
+        shape = int(np.round(np.sqrt(fake.shape[2])))
+        fake = fake[:, 0, :]
+        fake = F.pad(input=fake, pad=(0, shape ** 2 - fake.shape[1]), mode='constant', value=0)
+        X = X[:, 0, :]
+        X = F.pad(input=X, pad=(0, shape ** 2 - X.shape[1]), mode='constant', value=0)
         fake = fake.reshape((-1, 1, shape, shape))
         X = X.reshape((-1, 1, shape, shape))
     

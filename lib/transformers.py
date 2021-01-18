@@ -1,6 +1,9 @@
 from sklearn.base import TransformerMixin, BaseEstimator
 from sklearn.utils.random import sample_without_replacement
 import numpy as np
+from scipy import signal
+from PIL import Image   
+import PIL    
 
 class DataSelector(TransformerMixin, BaseEstimator):
 
@@ -204,3 +207,64 @@ class ArrayEqualizer(TransformerMixin, BaseEstimator):
         X_ = np.array(X_)
         
         return X_
+
+class ArraySTFT(TransformerMixin, BaseEstimator):
+
+    def fit(self, X, y=None):
+        
+        # Return the transformer
+        return self
+
+
+    def transform(self, X):
+        
+        X_ = X.copy()
+        
+        shortest_length = np.min([len(array) for array in X_])
+
+        X_ = [self._calculate_stft(array) for array in X_]
+        
+        X_ = np.array(X_)
+        
+        return X_
+
+    def _calculate_stft(self, array):
+
+        new_dimension = int(np.sqrt(len(array)))
+
+        _, _, stft = signal.stft(array, nperseg= (new_dimension * 2))
+        stft = np.abs(stft) / len(stft)
+
+        
+        stft = np.array(Image.fromarray(stft).resize((new_dimension, new_dimension), resample = PIL.Image.BILINEAR))
+
+        return stft
+
+class ArrayFFT(TransformerMixin, BaseEstimator):
+
+    def fit(self, X, y=None):
+        
+        # Return the transformer
+        return self
+
+
+    def transform(self, X):
+        
+        X_ = X.copy()
+
+        X_ = [self._calculate_fft(array) for array in X_]
+        
+        X_ = np.array(X_)
+        
+        return X_
+
+    def _calculate_fft(self, array):
+
+        fft = np.fft.fft(array)
+
+        new_dimension = len(fft) // 2
+        fft = fft[:new_dimension]
+
+        fft = np.abs(fft) / len(fft)
+
+        return fft

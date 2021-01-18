@@ -143,7 +143,7 @@ class Ganomaly2d(nn.Module):
         si = X.size()
         sz = latent_i.size()
 
-        app = (X - fake).view(si[0], si[1] * si[2] * sz[3])
+        app = (X - fake).view(si[0], si[1] * si[2] * si[3])
         lat = (latent_i - latent_o).view(sz[0], sz[1] * sz[2] * sz[3])
         
         app = torch.mean(torch.abs(app), dim=1)
@@ -197,7 +197,7 @@ class GanomalyFE(nn.Module):
         si = X.size()
         sz = latent_i.size()
 
-        app = (X - fake).view(si[0], si[1] * si[2] * sz[3])
+        app = (X - fake).view(si[0], si[1] * si[2] * si[3])
         lat = (latent_i - latent_o).view(sz[0], sz[1] * sz[2] * sz[3])
         
         app = torch.mean(torch.abs(app), dim=1)
@@ -265,11 +265,6 @@ class GanomalyNet(NeuralNet):
 
         self.optimizer_dis_.zero_grad()
         self.optimizer_gen_.zero_grad()
-
-        if loss_dis.item() < 1e-5:
-            discriminator.apply(weights_init)
-            print('Reloading discriminator')
-
         
         self.history.record_batch('loss_dis', loss_dis.item())
         self.history.record_batch('loss_gen', loss_gen.item())
