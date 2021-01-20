@@ -183,10 +183,11 @@ class Encoder2d(nn.Module):
 
             main.add_module('pyramid-{0}-{1}-conv'.format(in_feat, out_feat),
                             nn.Conv2d(in_feat, out_feat, 4, 2, 1, bias=False))
-            main.add_module('pyramid-{0}-relu'.format(out_feat),
-                            nn.LeakyReLU(0.2, inplace=True))
             main.add_module('pyramid-{0}-batchnorm'.format(out_feat),
                             nn.BatchNorm2d(out_feat))
+            main.add_module('pyramid-{0}-relu'.format(out_feat),
+                            nn.LeakyReLU(0.2, inplace=True))
+
 
             ndf = ndf * 2
         
@@ -227,27 +228,30 @@ class Decoder2d(nn.Module):
         # input is Z, going into a convolution
         main.add_module('initial-{0}-{1}-convt'.format(nz, cngf),
                         nn.ConvTranspose2d(nz, cngf, 3, 1, 0, bias=False))
-        main.add_module('initial-{0}-relu'.format(cngf),
-                        nn.ReLU(True))
         main.add_module('initial-{0}-batchnorm'.format(cngf),
                         nn.BatchNorm2d(cngf))
+        main.add_module('initial-{0}-relu'.format(cngf),
+                        nn.ReLU(True))
+
 
         main.add_module('initial-{0}-{1}-convt'.format(cngf, cngf // 2),
                         nn.ConvTranspose2d(cngf, cngf // 2, 4, 2, 1, output_padding = 1, bias=False))
-        main.add_module('initial-{0}-relu'.format(cngf // 2),
-                        nn.ReLU(True))
         main.add_module('initial-{0}-batchnorm'.format(cngf // 2),
                         nn.BatchNorm2d(cngf // 2))
+        main.add_module('initial-{0}-relu'.format(cngf // 2),
+                        nn.ReLU(True))
+
         
         cngf = cngf // 2
 
         for _ in range(n_intermediate_layers):
             main.add_module('pyramid-{0}-{1}-convt'.format(cngf, cngf // 2),
                             nn.ConvTranspose2d(cngf, cngf // 2, 4, 2, 1, bias=False))
-            main.add_module('pyramid-{0}-relu'.format(cngf // 2),
-                            nn.ReLU(True))
             main.add_module('pyramid-{0}-batchnorm'.format(cngf // 2),
                             nn.BatchNorm2d(cngf // 2))
+            main.add_module('pyramid-{0}-relu'.format(cngf // 2),
+                            nn.ReLU(True))
+
 
             cngf = cngf // 2
 

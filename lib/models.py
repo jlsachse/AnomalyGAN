@@ -21,6 +21,7 @@ from lib.loss import l2_loss
 
 from skorch import NeuralNet
 from skorch.utils import to_tensor
+from skorch.utils import to_numpy
 
 
 
@@ -85,7 +86,7 @@ class Ganomaly1d(nn.Module):
         lat = torch.mean(torch.pow(lat, 2), dim=1)
         error = self.w_lambda * app + (1 - self.w_lambda) * lat
 
-        return error.reshape(error.size(0))
+        return error.reshape(error.size(0)), X, fake, latent_i, latent_o
 
 
 
@@ -148,9 +149,10 @@ class Ganomaly2d(nn.Module):
         
         app = torch.mean(torch.abs(app), dim=1)
         lat = torch.mean(torch.pow(lat, 2), dim=1)
+
         error = self.w_lambda * app + (1 - self.w_lambda) * lat
 
-        return error.reshape(error.size(0))
+        return error.reshape(error.size(0)), X, fake, latent_i, latent_o
 
 
 
@@ -197,6 +199,8 @@ class GanomalyFE(nn.Module):
         si = X.size()
         sz = latent_i.size()
 
+        
+
         app = (X - fake).view(si[0], si[1] * si[2] * si[3])
         lat = (latent_i - latent_o).view(sz[0], sz[1] * sz[2] * sz[3])
         
@@ -204,7 +208,7 @@ class GanomalyFE(nn.Module):
         lat = torch.mean(torch.pow(lat, 2), dim=1)
         error = self.w_lambda * app + (1 - self.w_lambda) * lat
 
-        return error.reshape(error.size(0))
+        return error.reshape(error.size(0)), X, fake, latent_i, latent_o
 
 
 
@@ -304,3 +308,21 @@ class GanomalyNet(NeuralNet):
                    loss_gen_lat * self.module_.w_lat
 
         return loss_gen
+
+
+    def predict_proba(self, X):
+
+        nonlin = self._get_predict_nonlinearity()
+        y_probas = []
+        for yp in self.forward_iter(X, training=False):
+            yp = yp if isinstance(yp, tuple) else yp
+            yp = nonlin(yp)
+            y_probas.append(to_numpy(yp))
+        stacked = list(zip(*y_probas))
+        y_proba = [np.concatenate(array) for array in stacked]
+
+        return y_proba
+
+    def predict(self, X):
+        return self.predict_proba(X)[0]
+
