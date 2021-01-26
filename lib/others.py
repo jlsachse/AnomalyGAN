@@ -44,7 +44,7 @@ def chunk(array, chunk_size, keep_rest):
             if (len(result) == chunk_size):
                 yield result
 
-def build_model(model, isize, max_epochs, directory, needs_feature_engineering = False, ngpu = 0, nz = 600, ndf = 64, ngf = 64, nc = 1, batch_size = 16, lr = 0.0001, beta1 = 0.5, beta2 = 0.999, workers = 2):
+def build_model(model, isize, max_epochs, directory, plot_type, plot_shape, n_samples, plot_latent_shape, needs_feature_engineering = False, ngpu = 0, nz = 600, ndf = 64, ngf = 64, nc = 1, batch_size = 16, lr = 0.0001, beta1 = 0.5, beta2 = 0.999, workers = 2):
     
     if not needs_feature_engineering:
         output_model = GanomalyNet(
@@ -84,7 +84,7 @@ def build_model(model, isize, max_epochs, directory, needs_feature_engineering =
                 PassthroughScoring('loss_gen_fra', on_train=True),
                 PassthroughScoring('loss_gen_app', on_train=True),
                 PassthroughScoring('loss_gen_lat', on_train=True),
-                GANomalyBoard(SummaryWriter(log_dir= 'runs/' + directory), key_mapper = rename_tensorboard_key, close_after_train = False)
+                GANomalyBoard(SummaryWriter(log_dir= 'runs/' + directory), key_mapper = rename_tensorboard_key, close_after_train = False, plot_type = plot_type, plot_shape = plot_shape, n_samples = n_samples, plot_latent_shape = plot_latent_shape)
             ]
         )
     else:
@@ -119,7 +119,7 @@ def build_model(model, isize, max_epochs, directory, needs_feature_engineering =
                 PassthroughScoring('loss_gen_fra', on_train=True),
                 PassthroughScoring('loss_gen_app', on_train=True),
                 PassthroughScoring('loss_gen_lat', on_train=True),
-                GANomalyBoard(SummaryWriter(log_dir= 'runs/' + directory), key_mapper = rename_tensorboard_key, close_after_train = False)
+                GANomalyBoard(SummaryWriter(log_dir= 'runs/' + directory), key_mapper = rename_tensorboard_key, close_after_train = False, plot_type = plot_type, plot_shape = plot_shape, n_samples = n_samples, plot_latent_shape = plot_latent_shape)
             ]
         )
     

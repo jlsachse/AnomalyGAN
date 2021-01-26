@@ -5,8 +5,11 @@ from torch import tensor
 import torch
 import numpy as np
 
+
 import seaborn as sns
 import matplotlib.pyplot as plt
+import pandas as pd
+import matplotlib.gridspec as gridspec
 
 
 def extract_mean_score(net, dataset_train):
@@ -148,4 +151,57 @@ class GANomalyBoard(TensorBoard):
         
         return real_figure, fake_figure, latent_i_figure, latent_o_figure
 
-    
+
+def lineplot_comparison(result, first_line, second_line, title, xlabel, ylabel):
+
+    sns.set_style('darkgrid')
+    sns.set(rc={'figure.figsize':(20, 10)})
+
+    sns.set_context('notebook')
+
+
+    conditionFigure = plt.figure(constrained_layout=True)
+    cfSpec = gridspec.GridSpec(ncols=1, nrows=4, figure=conditionFigure)
+    conditionFigureAxis0 = conditionFigure.add_subplot(cfSpec[0, 0])
+    conditionFigureAxis1 = conditionFigure.add_subplot(cfSpec[1, 0])
+    conditionFigureAxis2 = conditionFigure.add_subplot(cfSpec[2, 0])
+    conditionFigureAxis3 = conditionFigure.add_subplot(cfSpec[3, 0])
+
+
+    ball_fault =\
+    pd.DataFrame(
+        [result[result['condition'] == 'Ball Fault'].iloc[0, :][first_line],
+         result[result['condition'] == 'Ball Fault'].iloc[0, :][second_line]]
+    ).T.rename({0: first_line, 1: second_line}, axis = 1)
+    p0 = sns.lineplot(data = ball_fault, ax = conditionFigureAxis0)
+    p0.set(xticklabels=[]) 
+
+    inner_race_fault =\
+    pd.DataFrame(
+        [result[result['condition'] == 'Inner Race Fault'].iloc[0, :][first_line],
+         result[result['condition'] == 'Inner Race Fault'].iloc[0, :][second_line]]
+    ).T.rename({0: first_line, 1: second_line}, axis = 1)
+    p1 = sns.lineplot(data = inner_race_fault, ax = conditionFigureAxis1)
+    p1.set(xticklabels=[]) 
+
+    outer_race_fault =\
+    pd.DataFrame(
+        [result[result['condition'] == 'Outer Race Fault'].iloc[0, :][first_line],
+         result[result['condition'] == 'Outer Race Fault'].iloc[0, :][second_line]]
+    ).T.rename({0: first_line, 1: second_line}, axis = 1)
+    p2 = sns.lineplot(data = outer_race_fault, ax = conditionFigureAxis2)
+    p2.set(xticklabels=[]) 
+
+    normal_baseline =\
+    pd.DataFrame(
+        [result[result['condition'] == 'Normal Baseline'].iloc[0, :][first_line],
+         result[result['condition'] == 'Normal Baseline'].iloc[0, :][second_line]]
+    ).T.rename({0: first_line, 1: second_line}, axis = 1)
+    sns.lineplot(data = normal_baseline, ax = conditionFigureAxis3);
+
+    conditionFigureAxis3.set_xlabel('.', color=(0, 0, 0, 0))
+    conditionFigureAxis3.set_ylabel('.', color=(0, 0, 0, 0))
+
+    conditionFigure.text(0.5, 0, xlabel, ha='center')
+    conditionFigure.text(0, 0.5, ylabel, va='center', rotation='vertical')
+    conditionFigure.suptitle(title);
