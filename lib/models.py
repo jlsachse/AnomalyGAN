@@ -240,20 +240,12 @@ class GanomalyNet(NeuralNet):
         
         fake, latent_i, latent_o = generator(Xi)
 
-        self.module_.fake = fake
-        self.module_.latent_i = fake
-        self.module_.latent_o = fake
-
         pred_real, feat_real = discriminator(Xi)
         pred_fake, feat_fake = discriminator(fake.detach())
 
         label_real = ones_like(pred_real, dtype=torch.float32, device=self.device).fill_(1.0)
 
-        # update discriminator
-        
-        loss_dis = self.module_.l_dis(feat_real, feat_fake)
-        
-        
+        # update discriminator#
         loss_gen_fra = self.module_.l_fra(pred_real, label_real)
         loss_gen_app = self.module_.l_app(Xi, fake)
         loss_gen_lat = self.module_.l_lat(latent_i, latent_o)
@@ -261,14 +253,17 @@ class GanomalyNet(NeuralNet):
                    loss_gen_app * self.module_.w_app + \
                    loss_gen_lat * self.module_.w_lat
 
-        loss_dis.backward(retain_graph=True)  #solve 
+        
+        loss_dis = self.module_.l_dis(feat_real, feat_fake)
+        
+        self.optimizer_gen_.zero_grad()
         loss_gen.backward(retain_graph=True)
-
-        self.optimizer_dis_.step()
         self.optimizer_gen_.step()
 
         self.optimizer_dis_.zero_grad()
-        self.optimizer_gen_.zero_grad()
+        loss_dis.backward()
+        self.optimizer_dis_.step()
+    
         
         self.history.record_batch('loss_dis', loss_dis.item())
         self.history.record_batch('loss_gen', loss_gen.item())
@@ -276,6 +271,7 @@ class GanomalyNet(NeuralNet):
         self.history.record_batch('loss_gen_fra', loss_gen_fra.item())
         self.history.record_batch('loss_gen_app', loss_gen_app.item())
         self.history.record_batch('loss_gen_lat', loss_gen_lat.item())
+
         
         return {
             'y_pred': fake,

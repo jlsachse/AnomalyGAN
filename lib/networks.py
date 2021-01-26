@@ -56,10 +56,11 @@ class Encoder1d(nn.Module):
             out_feat = ndf * 2
             main.add_module('pyramid-{0}-{1}-convt'.format(in_feat, out_feat),
                             nn.Conv1d(in_feat, out_feat, 16, stride=4, padding = 6, bias = False))
-            main.add_module('pyramid-relu-{0}'.format(out_feat),
-                            nn.LeakyReLU(0.2, inplace=True))
             main.add_module('pyramid-{0}-batchnorm'.format(out_feat),
                             nn.BatchNorm1d(out_feat))
+            main.add_module('pyramid-relu-{0}'.format(out_feat),
+                            nn.LeakyReLU(0.2, inplace=True))
+
             ndf = ndf * 2
 
         in_feat = ndf
@@ -67,10 +68,11 @@ class Encoder1d(nn.Module):
 
         main.add_module('pyramid-{0}-{1}-convt'.format(in_feat, out_feat),
                         nn.Conv1d(in_feat, out_feat, 16, stride=4, padding = 0, bias = False))
-        main.add_module('pyramid-relu-{0}'.format(out_feat),
-                    nn.LeakyReLU(0.2, inplace=True))
         main.add_module('pyramid-{0}-batchnorm'.format(out_feat),
                         nn.BatchNorm1d(out_feat))
+        main.add_module('pyramid-relu-{0}'.format(out_feat),
+                    nn.LeakyReLU(0.2, inplace=True))
+
         
         ndf = ndf * 2
 
@@ -114,27 +116,30 @@ class Decoder1d(nn.Module):
 
         main.add_module('initial-{0}-{1}-convt'.format(nz, cngf),
                         nn.ConvTranspose1d(nz, cngf, 9, stride=1, bias = False))
-        main.add_module('initial-{0}-relu'.format(cngf),
-                        nn.ReLU(True))
         main.add_module('pyramid-{0}-batchnorm'.format(cngf),
                         nn.BatchNorm1d(cngf))
+        main.add_module('initial-{0}-relu'.format(cngf),
+                        nn.ReLU(True))
+
 
         main.add_module('pyramid-{0}-{1}-convt'.format(cngf, cngf // 2),
                         nn.ConvTranspose1d(cngf, cngf // 2, 16, stride=4, padding = 0, output_padding=1, bias = False))
-        main.add_module('pyramid-{0}-relu'.format(cngf // 2),
-                        nn.ReLU(True))
         main.add_module('pyramid-{0}-batchnorm'.format(cngf // 2),
                         nn.BatchNorm1d(cngf // 2))
+        main.add_module('pyramid-{0}-relu'.format(cngf // 2),
+                        nn.ReLU(True))
+
 
         cngf = cngf // 2
 
         for _ in range(n_intermediate_layers):
             main.add_module('pyramid-{0}-{1}-convt'.format(cngf, cngf // 2),
                             nn.ConvTranspose1d(cngf, cngf // 2, 16, stride=4, padding = 6,  bias = False))
-            main.add_module('pyramid-{0}-relu'.format(cngf // 2),
-                            nn.ReLU(True))
             main.add_module('pyramid-{0}-batchnorm'.format(cngf // 2),
                             nn.BatchNorm1d(cngf // 2))
+            main.add_module('pyramid-{0}-relu'.format(cngf // 2),
+                            nn.ReLU(True))
+
 
             cngf = cngf // 2
 
@@ -282,11 +287,13 @@ class EncoderFE(nn.Module):
         main.add_module('initial-conv-1-4',
                         nn.Conv2d(1, 4, 2, 1, bias=False))
 
+        main.add_module('pyramid-4-batchnorm',
+                        nn.BatchNorm2d(4))
+
         main.add_module('pyramid-4-relu',
                         nn.LeakyReLU(0.2, inplace=True))
    
-        main.add_module('pyramid-4-batchnorm',
-                        nn.BatchNorm2d(4))
+
 
         main.add_module('final-conv-4-8',
                         nn.Conv2d(4, 8, 2, 1, bias=False))
@@ -431,11 +438,13 @@ class DiscriminatorNetFE(nn.Module):
         model = EncoderFE(isize, ngpu)
         self.features = model.main
 
+        self.features.add_module('pyramid-8-batchnorm',
+                        nn.BatchNorm2d(8))
+
+
         self.features.add_module('pyramid-8-relu',
                         nn.LeakyReLU(0.2, inplace=True))
 
-        self.features.add_module('pyramid-8-batchnorm',
-                        nn.BatchNorm2d(8))
 
         self.classifier = nn.Sequential()
         self.classifier.add_module('Sigmoid', nn.Sigmoid())
