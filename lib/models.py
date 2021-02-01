@@ -23,6 +23,10 @@ from skorch import NeuralNet
 from skorch.utils import to_tensor
 from skorch.utils import to_numpy
 
+from skorch.callbacks import EpochTimer
+from skorch.callbacks import PrintLog
+from skorch.callbacks import PassthroughScoring
+
 
 
 class Ganomaly1d(nn.Module):
@@ -42,15 +46,15 @@ class Ganomaly1d(nn.Module):
         self.ndf = ndf
         self.ngf = ngf
         self.ngpu = ngpu
-        self.w_fra = w_fra
-        self.w_app = w_app
-        self.w_lat = w_lat
+        self.fraud_weight = w_fra
+        self.appearant_weight = w_app
+        self.latent_weight = w_lat
         self.w_lambda = w_lambda
 
-        self.l_fra = nn.BCELoss()
-        self.l_app = nn.L1Loss()
-        self.l_lat = l2_loss
-        self.l_dis = nn.L1Loss()
+        self.fraud_loss = nn.BCELoss()
+        self.appearant_loss = nn.L1Loss()
+        self.latent_loss = l2_loss
+        self.discriminator_loss = nn.L1Loss()
 
         self.discriminator = DiscriminatorNet1d(
             isize=self.isize,
@@ -99,7 +103,6 @@ class Ganomaly2d(nn.Module):
 
     def __init__(self, isize, nz, nc, ndf, ngf, ngpu, w_fra = 1, w_app = 1, w_lat = 1, w_lambda = 0.5):
         super().__init__()
-        
 
         self.isize = isize
         self.nc = nc
@@ -107,15 +110,15 @@ class Ganomaly2d(nn.Module):
         self.ndf = ndf
         self.ngf = ngf
         self.ngpu = ngpu
-        self.w_fra = w_fra
-        self.w_app = w_app
-        self.w_lat = w_lat
+        self.fraud_weight = w_fra
+        self.appearant_weight = w_app
+        self.latent_weight = w_lat
         self.w_lambda = w_lambda
 
-        self.l_fra = nn.BCELoss()
-        self.l_app = nn.L1Loss()
-        self.l_lat = l2_loss
-        self.l_dis = nn.L1Loss()
+        self.fraud_loss = nn.BCELoss()
+        self.appearant_loss = nn.L1Loss()
+        self.latent_loss = l2_loss
+        self.discriminator_loss = nn.L1Loss()
 
         self.discriminator = DiscriminatorNet2d(
             isize=self.isize,
@@ -168,15 +171,15 @@ class GanomalyFE(nn.Module):
         
         self.isize = isize
         self.ngpu = ngpu
-        self.w_fra = w_fra
-        self.w_app = w_app
-        self.w_lat = w_lat
+        self.fraud_weight = w_fra
+        self.appearant_weight = w_app
+        self.latent_weight = w_lat
         self.w_lambda = w_lambda
 
-        self.l_fra = nn.BCELoss()
-        self.l_app = nn.L1Loss()
-        self.l_lat = l2_loss
-        self.l_dis = nn.L1Loss()
+        self.fraud_loss = nn.BCELoss()
+        self.appearant_loss = nn.L1Loss()
+        self.latent_loss = l2_loss
+        self.discriminator_loss = nn.L1Loss()
 
         self.discriminator = DiscriminatorNetFE(
             isize=self.isize,
@@ -213,97 +216,148 @@ class GanomalyFE(nn.Module):
 
 
 class GanomalyNet(NeuralNet):
-    def __init__(self, *args, optimizer_gen, optimizer_dis, **kwargs):
-        self.optimizer_gen = optimizer_gen
-        self.optimizer_dis = optimizer_dis
+    def __init__(self, *args, generator_optimizer, discriminator_optimizer, **kwargs):
+        self.generator_optimizer = generator_optimizer
+        self.discriminator_optimizer = discriminator_optimizer
 
         super().__init__(*args, **kwargs)
 
     def initialize_optimizer(self, *_, **__):
         args, kwargs = self.get_params_for_optimizer(
-            'optimizer_gen', self.module_.generator.named_parameters())
-        self.optimizer_gen_ = self.optimizer_gen(*args, **kwargs)
+            'generator_optimizer', self.module_.generator.named_parameters())
+        self.generator_optimizer_ = self.generator_optimizer(*args, **kwargs)
 
         args, kwargs = self.get_params_for_optimizer(
-            'optimizer_dis', self.module_.discriminator.named_parameters())
-        self.optimizer_dis_ = self.optimizer_dis(*args, **kwargs)
+            'discriminator_optimizer', self.module_.discriminator.named_parameters())
+        self.discriminator_optimizer_ = self.discriminator_optimizer(*args, **kwargs)
 
         return self
     
     def validation_step(self, Xi, yi, **fit_params):
         raise NotImplementedError
+
+    @property
+    def _default_callbacks(self):
+        return [
+            ('epoch_timer', EpochTimer()),
+            ('train_loss', PassthroughScoring(
+                name='train_loss',
+                on_train=True,
+            )),
+            ('discriminator_loss', PassthroughScoring(
+                name='discriminator_loss',
+                on_train=True
+            )),
+            ('generator_loss', PassthroughScoring(
+                name='generator_loss',
+                on_train=True
+            )),
+            ('fraud_loss', PassthroughScoring(
+                name='fraud_loss',
+                on_train=True
+            )),
+            ('appearant_loss', PassthroughScoring(
+                name='appearant_loss',
+                on_train=True
+            )),
+            ('latent_loss', PassthroughScoring(
+                name='latent_loss', 
+                on_train=True
+            )),
+            ('print_log', PrintLog()),
+        ]
     
     def train_step(self, Xi, yi=None, **fit_params):
+
+        # turn input data into tensor
         Xi = to_tensor(Xi, device=self.device)
+
+        # create local variables for the generator and discriminator
         discriminator = self.module_.discriminator
         generator = self.module_.generator
         
-        fake, latent_i, latent_o = generator(Xi)
+        # forward the generator and obtain it's data
+        fake, latent_Xi, latent_fake = generator(Xi)
 
-        pred_real, feat_real = discriminator(Xi)
-        pred_fake, feat_fake = discriminator(fake.detach())
+        # evaluate real and fake data with the discriminator
+        prediction_real, features_real = discriminator(Xi)
+        prediction_fake, features_fake = discriminator(fake.detach())
 
-        label_real = ones_like(pred_real, dtype=torch.float32, device=self.device).fill_(1.0)
+        # create a tensor of ones
+        # this is used for the discriminator
+        labels_real = ones_like(prediction_real, dtype=torch.float32, device=self.device).fill_(1.0)
 
-        # update discriminator#
-        loss_gen_fra = self.module_.l_fra(pred_real, label_real)
-        loss_gen_app = self.module_.l_app(Xi, fake)
-        loss_gen_lat = self.module_.l_lat(latent_i, latent_o)
-        loss_gen = loss_gen_fra * self.module_.w_fra + \
-                   loss_gen_app * self.module_.w_app + \
-                   loss_gen_lat * self.module_.w_lat
+        # calculate generator loss
+        fraud_loss = self.module_.fraud_loss(prediction_real, labels_real)
+        appearant_loss = self.module_.appearant_loss(Xi, fake)
+        latent_loss = self.module_.latent_loss(latent_Xi, latent_fake)
+        generator_loss = self.module_.fraud_weight     * fraud_loss     + \
+                         self.module_.appearant_weight * appearant_loss + \
+                         self.module_.latent_weight    * latent_loss
 
+        # calculate discriminator loss
+        discriminator_loss = self.module_.discriminator_loss(features_real, features_fake)
         
-        loss_dis = self.module_.l_dis(feat_real, feat_fake)
+        # set gradient of generator optimizer to zero and update generator weights
+        self.generator_optimizer_.zero_grad()
+        generator_loss.backward(retain_graph=True)
+        self.generator_optimizer_.step()
         
-        self.optimizer_gen_.zero_grad()
-        loss_gen.backward(retain_graph=True)
-        self.optimizer_gen_.step()
-
-        self.optimizer_dis_.zero_grad()
-        loss_dis.backward()
-        self.optimizer_dis_.step()
+        # set gradient of discriminator optimizer to zero and update discriminator weights
+        self.discriminator_optimizer_.zero_grad()
+        discriminator_loss.backward()
+        self.discriminator_optimizer_.step()
     
+        # record the different loss values in the models training history
+        self.history.record_batch('generator_loss', generator_loss.item())
+        self.history.record_batch('fraud_loss', fraud_loss.item())
+        self.history.record_batch('appearant_loss', appearant_loss.item())
+        self.history.record_batch('latent_loss', latent_loss.item())
+
+        self.history.record_batch('discriminator_loss', discriminator_loss.item())
         
-        self.history.record_batch('loss_dis', loss_dis.item())
-        self.history.record_batch('loss_gen', loss_gen.item())
+        # return loss for skorch
+        return {'loss': generator_loss + discriminator_loss}
 
-        self.history.record_batch('loss_gen_fra', loss_gen_fra.item())
-        self.history.record_batch('loss_gen_app', loss_gen_app.item())
-        self.history.record_batch('loss_gen_lat', loss_gen_lat.item())
-
-        
-        return {
-            'y_pred': fake,
-            'loss': loss_dis + loss_gen,
-        }
-
-    def score(self, X):
+    def score(self, X, y=None):
         X = to_tensor(X, device=self.device)
 
+        # create local variables for the generator and discriminator
         discriminator = self.module_.discriminator
         generator = self.module_.generator
-
-        fake, latent_i, latent_o = generator(X)
-
-        pred_real, feat_real = discriminator(X)
-        pred_fake, feat_fake = discriminator(fake.detach())
-
-        label_real = ones_like(pred_real, dtype=torch.float32, device=self.device).fill_(1.0)
-
-        # update discriminator
         
-        loss_dis = self.module_.l_dis(feat_real, feat_fake)
-        
-        
-        loss_gen_fra = self.module_.l_fra(pred_real, label_real)
-        loss_gen_app = self.module_.l_app(X, fake)
-        loss_gen_lat = self.module_.l_lat(latent_i, latent_o)
-        loss_gen = loss_gen_fra * self.module_.w_fra + \
-                   loss_gen_app * self.module_.w_app + \
-                   loss_gen_lat * self.module_.w_lat
+        # forward the generator and obtain it's data
+        fake, latent_X, latent_fake = generator(X)
 
-        return loss_gen
+        # evaluate real and fake data with the discriminator
+        prediction_real, features_real = discriminator(X)
+        prediction_fake, features_fake = discriminator(fake.detach())
+
+        # create a tensor of ones
+        # this is used for the discriminator
+        labels_real = ones_like(prediction_real, dtype=torch.float32, device=self.device).fill_(1.0)
+
+        # calculate generator loss
+        fraud_loss = self.module_.fraud_loss(prediction_real, labels_real)
+        appearant_loss = self.module_.appearant_loss(X, fake)
+        latent_loss = self.module_.latent_loss(latent_X, latent_fake)
+        generator_loss = self.module_.fraud_weight     * fraud_loss     + \
+                         self.module_.appearant_weight * appearant_loss + \
+                         self.module_.latent_weight    * latent_loss
+
+        # calculate discriminator loss
+        discriminator_loss = self.module_.discriminator_loss(features_real, features_fake)
+        
+        # calculate train loss
+        train_loss = generator_loss + discriminator_loss
+             
+        # make scores negative
+        # GridSearchCV then takes the lowest value
+        generator_loss = -1 * generator_loss.item()
+        train_loss = -1 * train_loss.item()
+
+        # return scores as dictionary
+        return {'generator_loss': generator_loss, 'train_loss': train_loss}
 
 
     def predict_proba(self, X):

@@ -24,9 +24,11 @@ def extract_mean_score(net, dataset_train):
 
 def rename_tensorboard_key(key):
 
-    if key in ['loss_gen_fra', 'loss_gen_app', 'loss_gen_lat']:
+    prefix = 'Not_Specified/'
+
+    if key in ['fraud_loss', 'appearant_loss', 'latent_loss']:
         prefix = 'Generator_Losses/'
-    elif key in ['loss_dis', 'loss_gen']:
+    elif key in ['discriminator_loss', 'generator_loss']:
         prefix = 'Player_Losses/'
     elif key in ['dur']:
         prefix = 'Duration/'

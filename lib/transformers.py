@@ -1,270 +1,188 @@
-from sklearn.base import TransformerMixin, BaseEstimator
+from sklearn.base import TransformerMixin
 from sklearn.utils.random import sample_without_replacement
 import numpy as np
 from scipy import signal
-from PIL import Image   
-import PIL    
-
-class DataSelector(TransformerMixin, BaseEstimator):
-
-    def __init__(self, columns = 'all', column_values = {}):
-        self.columns = columns
-        self.column_values = column_values
+from PIL import Image
+import PIL
 
 
-    def fit(self, X, y=None):
-        
-        # Return the transformer
-        return self
-
-
-    def transform(self, X):
-        
-        X_ = X.copy()
-        
-        if self.columns == 'all':
-            columns = slice(None)
-        else:
-            columns = self.columns
-    
-        for column, values in self.column_values.items():
-            X_ = X_[X_[column].isin(values)]
-    
-        X_ = X_.loc[:, columns]
-        X_ = X_.to_numpy()
-        
-        return X_
-
-class ArrayFlattener(TransformerMixin, BaseEstimator):
+class FeatureExtractor(TransformerMixin):
+    """
+    scikit-learn implementation of the feature extractor from (Jiang et. al, 2019)
+    """
 
     def fit(self, X, y=None):
-        
-        # Return the transformer
         return self
 
-
     def transform(self, X):
-        
-        X_ = X.copy()
-    
-        return np.concatenate(X_)
-    
-class DataTypeFilter(TransformerMixin, BaseEstimator):
-    
-    def __init__(self, data_type):
-        self.data_type = data_type
 
-    def fit(self, X, y=None):
-        
-        # Return the transformer
-        return self
+        # the absolute value is used for two different features
+        X_abs = np.abs(X)
 
-
-    def transform(self, X):
-        
-        X_ = X.copy()
-        
-        X_ = [array for array in X_ if isinstance(array, self.data_type)]
-        X_ = np.array(X_)
-        
-        return X_
-    
-    
-class ArrayChunker(TransformerMixin, BaseEstimator):
-    
-    def __init__(self, chunk_size, keep_rest = False):
-        self.chunk_size = chunk_size
-        self.keep_rest = keep_rest
-
-    def fit(self, X, y=None):
-        
-        # Return the transformer
-        return self
-
-
-    def transform(self, X):
-        
-        X_ = X.copy()
-        
-        X_ = [np.array(list(self._chunk(array, self.chunk_size, self.keep_rest))) for array in X_]
-        X_ = np.array(X_)
-    
-        return X_  
-
-    def _chunk(self, array, chunk_size, keep_rest):
-        
-        for position in range(0, len(array), chunk_size):
-            result = array[position:position + chunk_size]
-            
-            if keep_rest:
-                yield result
-            else:
-                if (len(result) == chunk_size):
-                    yield result
-                    
-class FeatureExtractor(TransformerMixin, BaseEstimator):
-
-    def __init__(self, axis):
-        self.axis = axis
-
-    def fit(self, X, y=None):
-        
-        # Return the transformer
-        return self
-
-
-    def transform(self, X):
-        
-        X_ = X.copy()
-        
-        # The absolute value is used for two different features
-        X_abs = np.abs(X_)
-        
-        # Features from (Jiang et. al, 2019)
-        maximum_value = np.max(X_, axis = self.axis)
-        mean_value = np.mean(X_, axis = self.axis)
-        minimum_value = np.min(X_, axis = self.axis)
-        standard_value = np.sqrt(np.mean((X_.T - maximum_value).T ** 2, axis = self.axis))
+        # calculate features from (Jiang et. al, 2019)
+        maximum_value = np.max(X, axis=1)
+        mean_value = np.mean(X, axis=1)
+        minimum_value = np.min(X, axis=1)
+        standard_value = np.sqrt(np.mean((X.T - maximum_value).T ** 2, axis=1))
         peak_to_peak_value = maximum_value - minimum_value
-        mean_amplitude = np.max(X_abs, axis = self.axis)
-        root_mean_square_value = np.sqrt(np.mean(X_**2, axis = self.axis))
-        skewness_value = np.mean((X_**3), axis = self.axis)
-        kurtosis_value = np.mean((X_**4), axis = self.axis)
+        mean_amplitude = np.max(X_abs, axis=1)
+        root_mean_square_value = np.sqrt(np.mean(X**2, axis=1))
+        skewness_value = np.mean((X**3), axis=1)
+        kurtosis_value = np.mean((X**4), axis=1)
         waveform_indicator = root_mean_square_value / mean_amplitude
-        pulse_indicator = np.array(maximum_value / mean_amplitude)
-        kurtosis_index = root_mean_square_value / root_mean_square_value
-        peak_index = kurtosis_value / root_mean_square_value 
-        square_root_amplitude = np.mean(np.sqrt(X_abs)**2, axis = self.axis)
+        pulse_indicator = maximum_value / mean_amplitude
+        kurtosis_index = kurtosis_value / root_mean_square_value
+        peak_index = maximum_value / root_mean_square_value
+        square_root_amplitude = np.mean(np.sqrt(X_abs), axis=1)**2
         margin_indicator = maximum_value / square_root_amplitude
         skewness_indicator = skewness_value / (root_mean_square_value ** 4)
+
+        # create list of calculated values 
+        X = [
+            maximum_value,
+            mean_value,
+            minimum_value,
+            standard_value,
+            peak_to_peak_value,
+            mean_amplitude,
+            root_mean_square_value,
+            skewness_value,
+            kurtosis_value,
+            waveform_indicator,
+            pulse_indicator, kurtosis_index,
+            peak_index,
+            square_root_amplitude,
+            margin_indicator,
+            skewness_indicator
+            ]
         
-        X_ = np.array([maximum_value, mean_value, minimum_value, standard_value,
-                       peak_to_peak_value, mean_amplitude, root_mean_square_value, skewness_value,
-                       kurtosis_value, waveform_indicator, pulse_indicator, kurtosis_index,
-                       peak_index, square_root_amplitude, margin_indicator, skewness_indicator])
-        X_ = X_.T
-        
-        return X_
-    
-    
-class ArrayReshaper(TransformerMixin, BaseEstimator):
+        # transform list into array and 
+        X = np.array(X)
+
+        # transpose array
+        X = X.T
+
+        return X
+
+
+class ArrayReshaper(TransformerMixin):
 
     def __init__(self, shape):
+        # set shape for  the arrays
         self.shape = shape
 
     def fit(self, X, y=None):
-        
-        # Return the transformer
         return self
 
-
     def transform(self, X):
-        
-        X_ = X.copy()
-        
-        X_ = [array.reshape(self.shape) for array in X_]
-        X_ = np.array(X_, dtype = np.float32)
-        
-        return X_
+        shape = self.shape
+
+        # reshape each array
+        X = [array.reshape(shape) for array in X]
+        X = np.array(X)
+
+        return X
 
 
-class RandomArraySampler(TransformerMixin, BaseEstimator):
+class ArrayRetyper(TransformerMixin):
 
-    def __init__(self, n_samples, random_state = None):
-        self.n_samples = n_samples
-        self.random_state = random_state
+    def __init__(self, dtype):
+        # set dtype for array
+        self.dtype = dtype
 
     def fit(self, X, y=None):
-        
-        # Return the transformer
         return self
 
-
     def transform(self, X):
-        
-        X_ = X.copy()
+        dtype = self.dtype
 
-        indeces = sample_without_replacement(len(X_), self.n_samples, random_state = self.random_state)
-        X_ = X_[indeces]
-        
-        return X_
+        # change dtype of array
+        X = np.array(X, dtype=dtype)
 
-class ArrayEqualizer(TransformerMixin, BaseEstimator):
+        return X
+
+
+class ArraySTFT(TransformerMixin):
 
     def fit(self, X, y=None):
-        
-        # Return the transformer
         return self
-
 
     def transform(self, X):
         
-        X_ = X.copy()
-        
-        shortest_length = np.min([len(array) for array in X_])
-        X_ = [array[:shortest_length] for array in X_]
-        
-        X_ = np.array(X_)
-        
-        return X_
+        # calculate spectrogram for each sample
+        X = [self._calculate_spectrogram(array) for array in X]
+        X = np.array(X)
 
-class ArraySTFT(TransformerMixin, BaseEstimator):
+        return X
+
+    def _calculate_spectrogram(self, array):
+
+        # calculate the dimension of the spectrogram
+        # by taking the square root of the signal length
+        spectrogram_dim  = int(np.sqrt(len(array)))
+
+        # calculate the spectrogram
+        # the window length is set to two times the spectrogram
+        # dimension to create a square spectrogram
+
+        # data about frequency and time is not needed and discarded
+        _, _, spectrogram = signal.stft(array, nperseg=(spectrogram_dim * 2))
+
+        # take amplitude and normalize the spectrogram
+        spectrogram = np.abs(spectrogram) / len(spectrogram)
+        spectrogram = np.array(Image.fromarray(spectrogram).resize(
+            (spectrogram_dim, spectrogram_dim), resample=PIL.Image.BILINEAR))
+
+        return spectrogram
+
+
+class ArrayRealFFT(TransformerMixin):
 
     def fit(self, X, y=None):
-        
-        # Return the transformer
         return self
-
 
     def transform(self, X):
         
-        X_ = X.copy()
+        # calculate frequency spectrum for each sample
+        X = [self._calculate_frequency_spectrum(array) for array in X]
+        X = np.array(X)
+
+        return X
+
+    def _calculate_frequency_spectrum(self, array):
         
-        shortest_length = np.min([len(array) for array in X_])
+        # calculate the length of the frequency spectrum
+        frequency_spectrum_len = len(array) // 2
 
-        X_ = [self._calculate_stft(array) for array in X_]
-        
-        X_ = np.array(X_)
-        
-        return X_
+        # calculate the frequency spectrum
+        frequency_spectrum = np.fft.fft(array)
 
-    def _calculate_stft(self, array):
+        # only keep first half of frequency spectrum
+        frequency_spectrum = frequency_spectrum[:frequency_spectrum_len]
 
-        new_dimension = int(np.sqrt(len(array)))
+        # take amplitude and normalize the frequency spectrum
+        frequency_spectrum = np.abs(frequency_spectrum) / len(frequency_spectrum)
 
-        _, _, stft = signal.stft(array, nperseg= (new_dimension * 2))
-        stft = np.abs(stft) / len(stft)
+        return frequency_spectrum
 
-        
-        stft = np.array(Image.fromarray(stft).resize((new_dimension, new_dimension), resample = PIL.Image.BILINEAR))
-
-        return stft
-
-class ArrayFFT(TransformerMixin, BaseEstimator):
+class ArrayMinMaxScaler(TransformerMixin):
 
     def fit(self, X, y=None):
-        
-        # Return the transformer
+        self.X_min = X.min()
+        self.X_max = X.max()
+
         return self
 
-
     def transform(self, X):
+
+        X_min = self.X_min
+        X_max = self.X_max
         
-        X_ = X.copy()
+        # scale each sample between zero and one
+        X = (X - X_min) / (X_max - X_min)
 
-        X_ = [self._calculate_fft(array) for array in X_]
-        
-        X_ = np.array(X_)
-        
-        return X_
+        return X
 
-    def _calculate_fft(self, array):
 
-        fft = np.fft.fft(array)
 
-        new_dimension = len(fft) // 2
-        fft = fft[:new_dimension]
 
-        fft = np.abs(fft) / len(fft)
-
-        return fft

@@ -62,13 +62,13 @@ def build_model(model, isize, max_epochs, directory, plot_type, plot_shape, n_sa
 
             criterion=torch.nn.BCELoss,
 
-            optimizer_gen=torch.optim.Adam,
-            optimizer_gen__lr=lr,
-            optimizer_gen__betas=(beta1, beta2),
+            generator_optimizer=torch.optim.Adam,
+            generator_optimizer__lr=lr,
+            generator_optimizer__betas=(beta1, beta2),
 
-            optimizer_dis=torch.optim.Adam,
-            optimizer_dis__lr=lr,
-            optimizer_dis__betas=(beta1, beta2),
+            discriminator_optimizer=torch.optim.Adam,
+            discriminator_optimizer__lr=lr,
+            discriminator_optimizer__betas=(beta1, beta2),
 
             batch_size=batch_size,
             max_epochs=max_epochs,
@@ -78,14 +78,9 @@ def build_model(model, isize, max_epochs, directory, plot_type, plot_shape, n_sa
             iterator_train__num_workers=workers,
             iterator_valid__num_workers=workers,
 
-            callbacks=[
-                PassthroughScoring('loss_dis', on_train=True),
-                PassthroughScoring('loss_gen', on_train=True),
-                PassthroughScoring('loss_gen_fra', on_train=True),
-                PassthroughScoring('loss_gen_app', on_train=True),
-                PassthroughScoring('loss_gen_lat', on_train=True),
-                GANomalyBoard(SummaryWriter(log_dir= 'runs/' + directory), key_mapper = rename_tensorboard_key, close_after_train = False, plot_type = plot_type, plot_shape = plot_shape, n_samples = n_samples, plot_latent_shape = plot_latent_shape)
-            ]
+            # callbacks=[
+            #     GANomalyBoard(SummaryWriter(log_dir= 'runs/' + directory), key_mapper = rename_tensorboard_key, close_after_train = False, plot_type = plot_type, plot_shape = plot_shape, n_samples = n_samples, plot_latent_shape = plot_latent_shape)
+            # ]
         )
     else:
             output_model = GanomalyNet(
@@ -97,13 +92,13 @@ def build_model(model, isize, max_epochs, directory, plot_type, plot_shape, n_sa
 
             criterion=torch.nn.BCELoss,
 
-            optimizer_gen=torch.optim.Adam,
-            optimizer_gen__lr=lr,
-            optimizer_gen__betas=(beta1, beta2),
+            generator_optimizer=torch.optim.Adam,
+            generator_optimizer__lr=lr,
+            generator_optimizer__betas=(beta1, beta2),
 
-            optimizer_dis=torch.optim.Adam,
-            optimizer_dis__lr=lr,
-            optimizer_dis__betas=(beta1, beta2),
+            discriminator_optimizer=torch.optim.Adam,
+            discriminator_optimizer__lr=lr,
+            discriminator_optimizer__betas=(beta1, beta2),
 
             batch_size=batch_size,
             max_epochs=max_epochs,
@@ -114,11 +109,6 @@ def build_model(model, isize, max_epochs, directory, plot_type, plot_shape, n_sa
             iterator_valid__num_workers=workers,
 
             callbacks=[
-                PassthroughScoring('loss_dis', on_train=True),
-                PassthroughScoring('loss_gen', on_train=True),
-                PassthroughScoring('loss_gen_fra', on_train=True),
-                PassthroughScoring('loss_gen_app', on_train=True),
-                PassthroughScoring('loss_gen_lat', on_train=True),
                 GANomalyBoard(SummaryWriter(log_dir= 'runs/' + directory), key_mapper = rename_tensorboard_key, close_after_train = False, plot_type = plot_type, plot_shape = plot_shape, n_samples = n_samples, plot_latent_shape = plot_latent_shape)
             ]
         )

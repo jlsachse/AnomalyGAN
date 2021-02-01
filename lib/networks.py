@@ -340,8 +340,6 @@ class DecoderFE(nn.Module):
 
         return output
 
-
-
 class DiscriminatorNet1d(nn.Module):
     """
     DISCRIMINATOR NETWORK
