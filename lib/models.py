@@ -28,7 +28,6 @@ from skorch.callbacks import PrintLog
 from skorch.callbacks import PassthroughScoring
 
 
-
 class Ganomaly1d(nn.Module):
     """GANomaly Class
     """
@@ -36,9 +35,8 @@ class Ganomaly1d(nn.Module):
     @property
     def name(self): return 'Ganomaly'
 
-    def __init__(self, input_size, n_z, n_channels, n_fm_discriminator, n_fm_generator, n_gpus, fraud_weight = 1, appearant_weight = 1, latent_weight = 1, lambda_weight = 0.5):
+    def __init__(self, input_size, n_z, n_channels, n_fm_discriminator, n_fm_generator, n_gpus, fraud_weight=1, appearant_weight=1, latent_weight=1, lambda_weight=0.5):
         super().__init__()
-    
 
         self.input_size = input_size
         self.n_channels = n_channels
@@ -73,21 +71,21 @@ class Ganomaly1d(nn.Module):
         )
         self.generator.apply(weights_init)
 
-
     def forward(self, X, y=None):
 
         fake, latent_real, latent_fake = self.generator(X)
 
         appearant_differences = (X - fake).view(fake.size()[0], -1)
-        latent_differences = (latent_real - latent_fake).view(latent_real.size()[0],-1)
-        
+        latent_differences = (
+            latent_real - latent_fake).view(latent_real.size()[0], -1)
+
         appearant_loss = torch.mean(appearant_differences.abs(), dim=1)
         latent_loss = torch.mean(torch.pow(latent_differences, 2), dim=1)
 
-        error = self.lambda_weight * appearant_loss + (1 - self.lambda_weight) * latent_loss
+        error = self.lambda_weight * appearant_loss + \
+            (1 - self.lambda_weight) * latent_loss
 
         return error.reshape(error.size(0)), X, fake, latent_real, latent_fake
-
 
 
 class Ganomaly2d(nn.Module):
@@ -97,7 +95,7 @@ class Ganomaly2d(nn.Module):
     @property
     def name(self): return 'Ganomaly'
 
-    def __init__(self, input_size, n_z, n_channels, n_fm_discriminator, n_fm_generator, n_gpus, fraud_weight = 1, appearant_weight = 1, latent_weight = 1, lambda_weight = 0.5):
+    def __init__(self, input_size, n_z, n_channels, n_fm_discriminator, n_fm_generator, n_gpus, fraud_weight=1, appearant_weight=1, latent_weight=1, lambda_weight=0.5):
         super().__init__()
 
         self.input_size = input_size
@@ -133,21 +131,21 @@ class Ganomaly2d(nn.Module):
         )
         self.generator.apply(weights_init)
 
-
     def forward(self, X, y=None):
 
         fake, latent_real, latent_fake = self.generator(X)
 
         appearant_differences = (X - fake).view(fake.size()[0], -1)
-        latent_differences = (latent_real - latent_fake).view(latent_real.size()[0],-1)
-        
+        latent_differences = (
+            latent_real - latent_fake).view(latent_real.size()[0], -1)
+
         appearant_loss = torch.mean(appearant_differences.abs(), dim=1)
         latent_loss = torch.mean(torch.pow(latent_differences, 2), dim=1)
 
-        error = self.lambda_weight * appearant_loss + (1 - self.lambda_weight) * latent_loss
+        error = self.lambda_weight * appearant_loss + \
+            (1 - self.lambda_weight) * latent_loss
 
         return error.reshape(error.size(0)), X, fake, latent_real, latent_fake
-
 
 
 class GanomalyFE(nn.Module):
@@ -157,9 +155,9 @@ class GanomalyFE(nn.Module):
     @property
     def name(self): return 'GanomalyFE'
 
-    def __init__(self, input_size, n_gpus, fraud_weight = 1, appearant_weight = 1, latent_weight = 1, lambda_weight = 0.5):
+    def __init__(self, input_size, n_gpus, fraud_weight=1, appearant_weight=1, latent_weight=1, lambda_weight=0.5):
         super().__init__()
-        
+
         self.input_size = input_size
         self.n_gpus = n_gpus
         self.fraud_weight = fraud_weight
@@ -183,21 +181,21 @@ class GanomalyFE(nn.Module):
         )
         self.generator.apply(weights_init)
 
-
     def forward(self, X, y=None):
 
         fake, latent_real, latent_fake = self.generator(X)
 
         appearant_differences = (X - fake).view(fake.size()[0], -1)
-        latent_differences = (latent_real - latent_fake).view(latent_real.size()[0],-1)
-        
+        latent_differences = (
+            latent_real - latent_fake).view(latent_real.size()[0], -1)
+
         appearant_loss = torch.mean(appearant_differences.abs(), dim=1)
         latent_loss = torch.mean(torch.pow(latent_differences, 2), dim=1)
 
-        error = self.lambda_weight * appearant_loss + (1 - self.lambda_weight) * latent_loss
+        error = self.lambda_weight * appearant_loss + \
+            (1 - self.lambda_weight) * latent_loss
 
         return error.reshape(error.size(0)), X, fake, latent_real, latent_fake
-
 
 
 class GanomalyNet(NeuralNet):
@@ -214,10 +212,11 @@ class GanomalyNet(NeuralNet):
 
         args, kwargs = self.get_params_for_optimizer(
             'discriminator_optimizer', self.module_.discriminator.named_parameters())
-        self.discriminator_optimizer_ = self.discriminator_optimizer(*args, **kwargs)
+        self.discriminator_optimizer_ = self.discriminator_optimizer(
+            *args, **kwargs)
 
         return self
-    
+
     def validation_step(self, Xi, yi, **fit_params):
         raise NotImplementedError
 
@@ -246,12 +245,12 @@ class GanomalyNet(NeuralNet):
                 on_train=True
             )),
             ('latent_loss', PassthroughScoring(
-                name='latent_loss', 
+                name='latent_loss',
                 on_train=True
             )),
             ('print_log', PrintLog()),
         ]
-    
+
     def train_step(self, Xi, yi=None, **fit_params):
 
         # turn input data into tensor
@@ -260,7 +259,7 @@ class GanomalyNet(NeuralNet):
         # create local variables for the generator and discriminator
         discriminator = self.module_.discriminator
         generator = self.module_.generator
-        
+
         # forward the generator and obtain it's data
         fake, latent_Xi, latent_fake = generator(Xi)
 
@@ -270,37 +269,40 @@ class GanomalyNet(NeuralNet):
 
         # create a tensor of ones
         # this is used for the discriminator
-        labels_real = ones_like(prediction_real, dtype=torch.float32, device=self.device).fill_(1.0)
+        labels_real = ones_like(
+            prediction_real, dtype=torch.float32, device=self.device).fill_(1.0)
 
         # calculate generator loss
         fraud_loss = self.module_.fraud_loss(prediction_real, labels_real)
         appearant_loss = self.module_.appearant_loss(Xi, fake)
         latent_loss = self.module_.latent_loss(latent_Xi, latent_fake)
-        generator_loss = self.module_.fraud_weight     * fraud_loss     + \
-                         self.module_.appearant_weight * appearant_loss + \
-                         self.module_.latent_weight    * latent_loss
+        generator_loss = self.module_.fraud_weight * fraud_loss + \
+            self.module_.appearant_weight * appearant_loss + \
+            self.module_.latent_weight * latent_loss
 
         # calculate discriminator loss
-        discriminator_loss = self.module_.discriminator_loss(features_real, features_fake)
-        
+        discriminator_loss = self.module_.discriminator_loss(
+            features_real, features_fake)
+
         # set gradient of generator optimizer to zero and update generator weights
         self.generator_optimizer_.zero_grad()
         generator_loss.backward(retain_graph=True)
         self.generator_optimizer_.step()
-        
+
         # set gradient of discriminator optimizer to zero and update discriminator weights
         self.discriminator_optimizer_.zero_grad()
         discriminator_loss.backward()
         self.discriminator_optimizer_.step()
-    
+
         # record the different loss values in the models training history
         self.history.record_batch('generator_loss', generator_loss.item())
         self.history.record_batch('fraud_loss', fraud_loss.item())
         self.history.record_batch('appearant_loss', appearant_loss.item())
         self.history.record_batch('latent_loss', latent_loss.item())
 
-        self.history.record_batch('discriminator_loss', discriminator_loss.item())
-        
+        self.history.record_batch(
+            'discriminator_loss', discriminator_loss.item())
+
         # return loss for skorch
         return {'loss': generator_loss + discriminator_loss}
 
@@ -310,7 +312,7 @@ class GanomalyNet(NeuralNet):
         # create local variables for the generator and discriminator
         discriminator = self.module_.discriminator
         generator = self.module_.generator
-        
+
         # forward the generator and obtain it's data
         fake, latent_X, latent_fake = generator(X)
 
@@ -320,22 +322,28 @@ class GanomalyNet(NeuralNet):
 
         # create a tensor of ones
         # this is used for the discriminator
-        labels_real = ones_like(prediction_real, dtype=torch.float32, device=self.device).fill_(1.0)
+        labels_real = ones_like(
+            prediction_real, dtype=torch.float32, device=self.device).fill_(1.0)
 
         # calculate generator loss
         fraud_loss = self.module_.fraud_loss(prediction_real, labels_real)
         appearant_loss = self.module_.appearant_loss(X, fake)
         latent_loss = self.module_.latent_loss(latent_X, latent_fake)
-        generator_loss = self.module_.fraud_weight     * fraud_loss     + \
-                         self.module_.appearant_weight * appearant_loss + \
-                         self.module_.latent_weight    * latent_loss
+        generator_loss = self.module_.fraud_weight * fraud_loss + \
+            self.module_.appearant_weight * appearant_loss + \
+            self.module_.latent_weight * latent_loss
+
+        generator_loss = generator_loss / \
+            (self.module_.fraud_weight +
+             self.module_.appearant_weigh + self.module_.latent_weight)
 
         # calculate discriminator loss
-        discriminator_loss = self.module_.discriminator_loss(features_real, features_fake)
-        
+        discriminator_loss = self.module_.discriminator_loss(
+            features_real, features_fake)
+
         # calculate train loss
         train_loss = generator_loss + discriminator_loss
-             
+
         # make scores negative
         # GridSearchCV then takes the lowest value
         generator_loss = -1 * generator_loss.item()
@@ -343,7 +351,6 @@ class GanomalyNet(NeuralNet):
 
         # return scores as dictionary
         return {'generator_loss': generator_loss, 'train_loss': train_loss}
-
 
     def predict_proba(self, X):
 
@@ -360,4 +367,3 @@ class GanomalyNet(NeuralNet):
 
     def predict(self, X):
         return self.predict_proba(X)[0]
-
