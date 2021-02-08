@@ -49,7 +49,7 @@ def chunk(array, chunk_size, keep_rest):
                 yield result
 
 
-def build_model(model, device, max_epochs, batch_size, lr, beta1, beta2, workers, plot_type='lineplot', plot_shape=3136, n_samples=4, plot_latent_shape=600, suffix='', callbacks=[], **kwargs):
+def build_model(model, device, max_epochs, batch_size, lr, beta1, beta2, workers, plot_type='lineplot', plot_shape=3136, n_samples=4, plot_latent_shape=600, suffix='', callbacks=[], verbose=0, **kwargs):
 
     module_kwargs = ['input_size', 'n_z', 'n_channels',
                      'n_gpus', 'n_fm_discriminator',
@@ -80,6 +80,7 @@ def build_model(model, device, max_epochs, batch_size, lr, beta1, beta2, workers
         model,
         **module_kwargs,
 
+        verbose=verbose,
         device=device,
 
         criterion=torch.nn.BCELoss,
