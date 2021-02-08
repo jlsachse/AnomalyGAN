@@ -136,7 +136,7 @@ class ArraySTFT(TransformerMixin):
         return spectrogram
 
 
-class ArrayRealFFT(TransformerMixin):
+class ArrayFFT(TransformerMixin):
 
     def fit(self, X, y=None):
         return self

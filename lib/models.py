@@ -36,20 +36,20 @@ class Ganomaly1d(nn.Module):
     @property
     def name(self): return 'Ganomaly'
 
-    def __init__(self, isize, nz, nc, ndf, ngf, ngpu, w_fra = 1, w_app = 1, w_lat = 1, w_lambda = 0.5):
+    def __init__(self, input_size, n_z, n_channels, n_fm_discriminator, n_fm_generator, n_gpus, fraud_weight = 1, appearant_weight = 1, latent_weight = 1, lambda_weight = 0.5):
         super().__init__()
     
 
-        self.isize = isize
-        self.nc = nc
-        self.nz = nz
-        self.ndf = ndf
-        self.ngf = ngf
-        self.ngpu = ngpu
-        self.fraud_weight = w_fra
-        self.appearant_weight = w_app
-        self.latent_weight = w_lat
-        self.w_lambda = w_lambda
+        self.input_size = input_size
+        self.n_channels = n_channels
+        self.n_z = n_z
+        self.n_fm_discriminator = n_fm_discriminator
+        self.n_fm_generator = n_fm_generator
+        self.n_gpus = n_gpus
+        self.fraud_weight = fraud_weight
+        self.appearant_weight = appearant_weight
+        self.latent_weight = latent_weight
+        self.lambda_weight = lambda_weight
 
         self.fraud_loss = nn.BCELoss()
         self.appearant_loss = nn.L1Loss()
@@ -57,40 +57,36 @@ class Ganomaly1d(nn.Module):
         self.discriminator_loss = nn.L1Loss()
 
         self.discriminator = DiscriminatorNet1d(
-            isize=self.isize,
-            nz=self.nz,
-            nc=self.nc,
-            ndf=self.ndf,
-            ngpu=self.ngpu
+            input_size=self.input_size,
+            n_z=self.n_z,
+            n_channels=self.n_channels,
+            n_feature_maps=self.n_fm_discriminator,
+            n_gpus=self.n_gpus
         )
         self.discriminator.apply(weights_init)
         self.generator = GeneratorNet1d(
-            isize=self.isize,
-            nz=self.nz,
-            nc=self.nc,
-            ngf=self.ngf,
-            ngpu=self.ngpu
+            input_size=self.input_size,
+            n_z=self.n_z,
+            n_channels=self.n_channels,
+            n_feature_maps=self.n_fm_generator,
+            n_gpus=self.n_gpus
         )
         self.generator.apply(weights_init)
 
 
-    def forward(self, X, y=None): #lambda could also be placed here
-        # general forward method just returns fake images
-        # repair loss
+    def forward(self, X, y=None):
 
-        fake, latent_i, latent_o = self.generator(X)
+        fake, latent_real, latent_fake = self.generator(X)
 
-        si = X.size()
-        sz = latent_i.size()
-
-        app = (X - fake).view(si[0], si[1] * si[2])
-        lat = (latent_i - latent_o).view(sz[0], sz[1] * sz[2])
+        appearant_differences = (X - fake).view(fake.size()[0], -1)
+        latent_differences = (latent_real - latent_fake).view(latent_real.size()[0],-1)
         
-        app = torch.mean(torch.abs(app), dim=1)
-        lat = torch.mean(torch.pow(lat, 2), dim=1)
-        error = self.w_lambda * app + (1 - self.w_lambda) * lat
+        appearant_loss = torch.mean(appearant_differences.abs(), dim=1)
+        latent_loss = torch.mean(torch.pow(latent_differences, 2), dim=1)
 
-        return error.reshape(error.size(0)), X, fake, latent_i, latent_o
+        error = self.lambda_weight * appearant_loss + (1 - self.lambda_weight) * latent_loss
+
+        return error.reshape(error.size(0)), X, fake, latent_real, latent_fake
 
 
 
@@ -101,19 +97,19 @@ class Ganomaly2d(nn.Module):
     @property
     def name(self): return 'Ganomaly'
 
-    def __init__(self, isize, nz, nc, ndf, ngf, ngpu, w_fra = 1, w_app = 1, w_lat = 1, w_lambda = 0.5):
+    def __init__(self, input_size, n_z, n_channels, n_fm_discriminator, n_fm_generator, n_gpus, fraud_weight = 1, appearant_weight = 1, latent_weight = 1, lambda_weight = 0.5):
         super().__init__()
 
-        self.isize = isize
-        self.nc = nc
-        self.nz = nz
-        self.ndf = ndf
-        self.ngf = ngf
-        self.ngpu = ngpu
-        self.fraud_weight = w_fra
-        self.appearant_weight = w_app
-        self.latent_weight = w_lat
-        self.w_lambda = w_lambda
+        self.input_size = input_size
+        self.n_channels = n_channels
+        self.n_z = n_z
+        self.n_fm_discriminator = n_fm_discriminator
+        self.n_fm_generator = n_fm_generator
+        self.n_gpus = n_gpus
+        self.fraud_weight = fraud_weight
+        self.appearant_weight = appearant_weight
+        self.latent_weight = latent_weight
+        self.lambda_weight = lambda_weight
 
         self.fraud_loss = nn.BCELoss()
         self.appearant_loss = nn.L1Loss()
@@ -121,41 +117,36 @@ class Ganomaly2d(nn.Module):
         self.discriminator_loss = nn.L1Loss()
 
         self.discriminator = DiscriminatorNet2d(
-            isize=self.isize,
-            nz=self.nz,
-            nc=self.nc,
-            ndf=self.ndf,
-            ngpu=self.ngpu
+            input_size=self.input_size,
+            n_z=self.n_z,
+            n_channels=self.n_channels,
+            n_feature_maps=self.n_fm_discriminator,
+            n_gpus=self.n_gpus
         )
         self.discriminator.apply(weights_init)
         self.generator = GeneratorNet2d(
-            isize=self.isize,
-            nz=self.nz,
-            nc=self.nc,
-            ngf=self.ngf,
-            ngpu=self.ngpu
+            input_size=self.input_size,
+            n_z=self.n_z,
+            n_channels=self.n_channels,
+            n_feature_maps=self.n_fm_generator,
+            n_gpus=self.n_gpus
         )
         self.generator.apply(weights_init)
 
 
-    def forward(self, X, y=None): #lambda could also be placed here
-        # general forward method just returns fake images
-        # repair loss
+    def forward(self, X, y=None):
 
-        fake, latent_i, latent_o = self.generator(X)
+        fake, latent_real, latent_fake = self.generator(X)
 
-        si = X.size()
-        sz = latent_i.size()
-
-        app = (X - fake).view(si[0], si[1] * si[2] * si[3])
-        lat = (latent_i - latent_o).view(sz[0], sz[1] * sz[2] * sz[3])
+        appearant_differences = (X - fake).view(fake.size()[0], -1)
+        latent_differences = (latent_real - latent_fake).view(latent_real.size()[0],-1)
         
-        app = torch.mean(torch.abs(app), dim=1)
-        lat = torch.mean(torch.pow(lat, 2), dim=1)
+        appearant_loss = torch.mean(appearant_differences.abs(), dim=1)
+        latent_loss = torch.mean(torch.pow(latent_differences, 2), dim=1)
 
-        error = self.w_lambda * app + (1 - self.w_lambda) * lat
+        error = self.lambda_weight * appearant_loss + (1 - self.lambda_weight) * latent_loss
 
-        return error.reshape(error.size(0)), X, fake, latent_i, latent_o
+        return error.reshape(error.size(0)), X, fake, latent_real, latent_fake
 
 
 
@@ -166,15 +157,15 @@ class GanomalyFE(nn.Module):
     @property
     def name(self): return 'GanomalyFE'
 
-    def __init__(self, isize, ngpu, w_fra = 1, w_app = 1, w_lat = 1, w_lambda = 0.5):
+    def __init__(self, input_size, n_gpus, fraud_weight = 1, appearant_weight = 1, latent_weight = 1, lambda_weight = 0.5):
         super().__init__()
         
-        self.isize = isize
-        self.ngpu = ngpu
-        self.fraud_weight = w_fra
-        self.appearant_weight = w_app
-        self.latent_weight = w_lat
-        self.w_lambda = w_lambda
+        self.input_size = input_size
+        self.n_gpus = n_gpus
+        self.fraud_weight = fraud_weight
+        self.appearant_weight = appearant_weight
+        self.latent_weight = latent_weight
+        self.lambda_weight = lambda_weight
 
         self.fraud_loss = nn.BCELoss()
         self.appearant_loss = nn.L1Loss()
@@ -182,36 +173,30 @@ class GanomalyFE(nn.Module):
         self.discriminator_loss = nn.L1Loss()
 
         self.discriminator = DiscriminatorNetFE(
-            isize=self.isize,
-            ngpu=self.ngpu
+            input_size=self.input_size,
+            n_gpus=self.n_gpus
         )
         self.discriminator.apply(weights_init)
         self.generator = GeneratorNetFE(
-            isize=self.isize,
-            ngpu=self.ngpu
+            input_size=self.input_size,
+            n_gpus=self.n_gpus
         )
         self.generator.apply(weights_init)
 
 
-    def forward(self, X, y=None): #lambda could also be placed here
-        # general forward method just returns fake images
-        # repair loss
+    def forward(self, X, y=None):
 
-        fake, latent_i, latent_o = self.generator(X)
+        fake, latent_real, latent_fake = self.generator(X)
 
-        si = X.size()
-        sz = latent_i.size()
-
+        appearant_differences = (X - fake).view(fake.size()[0], -1)
+        latent_differences = (latent_real - latent_fake).view(latent_real.size()[0],-1)
         
+        appearant_loss = torch.mean(appearant_differences.abs(), dim=1)
+        latent_loss = torch.mean(torch.pow(latent_differences, 2), dim=1)
 
-        app = (X - fake).view(si[0], si[1] * si[2] * si[3])
-        lat = (latent_i - latent_o).view(sz[0], sz[1] * sz[2] * sz[3])
-        
-        app = torch.mean(torch.abs(app), dim=1)
-        lat = torch.mean(torch.pow(lat, 2), dim=1)
-        error = self.w_lambda * app + (1 - self.w_lambda) * lat
+        error = self.lambda_weight * appearant_loss + (1 - self.lambda_weight) * latent_loss
 
-        return error.reshape(error.size(0)), X, fake, latent_i, latent_o
+        return error.reshape(error.size(0)), X, fake, latent_real, latent_fake
 
 
 
