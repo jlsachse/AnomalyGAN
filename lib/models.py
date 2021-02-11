@@ -49,10 +49,11 @@ class Ganomaly1d(nn.Module):
         self.latent_weight = latent_weight
         self.lambda_weight = lambda_weight
 
-        self.fraud_loss = nn.BCELoss()
+        self.discriminator_loss = nn.BCELoss()
+
+        self.fraud_loss = l2_loss
         self.appearant_loss = nn.L1Loss()
         self.latent_loss = l2_loss
-        self.discriminator_loss = nn.L1Loss()
 
         self.discriminator = DiscriminatorNet1d(
             input_size=self.input_size,
@@ -109,10 +110,11 @@ class Ganomaly2d(nn.Module):
         self.latent_weight = latent_weight
         self.lambda_weight = lambda_weight
 
-        self.fraud_loss = nn.BCELoss()
+        self.discriminator_loss = nn.BCELoss()
+
+        self.fraud_loss = l2_loss
         self.appearant_loss = nn.L1Loss()
         self.latent_loss = l2_loss
-        self.discriminator_loss = nn.L1Loss()
 
         self.discriminator = DiscriminatorNet2d(
             input_size=self.input_size,
@@ -165,10 +167,11 @@ class GanomalyFE(nn.Module):
         self.latent_weight = latent_weight
         self.lambda_weight = lambda_weight
 
-        self.fraud_loss = nn.BCELoss()
+        self.discriminator_loss = nn.BCELoss()
+
+        self.fraud_loss = l2_loss
         self.appearant_loss = nn.L1Loss()
         self.latent_loss = l2_loss
-        self.discriminator_loss = nn.L1Loss()
 
         self.discriminator = DiscriminatorNetFE(
             input_size=self.input_size,
@@ -273,16 +276,16 @@ class GanomalyNet(NeuralNet):
             prediction_real, dtype=torch.float32, device=self.device).fill_(1.0)
 
         # calculate generator loss
-        fraud_loss = self.module_.fraud_loss(prediction_real, labels_real)
+        fraud_loss = self.module_.fraud_loss(features_real, features_fake)
         appearant_loss = self.module_.appearant_loss(Xi, fake)
         latent_loss = self.module_.latent_loss(latent_Xi, latent_fake)
         generator_loss = self.module_.fraud_weight * fraud_loss + \
             self.module_.appearant_weight * appearant_loss + \
             self.module_.latent_weight * latent_loss
 
-        # calculate discriminator loss
         discriminator_loss = self.module_.discriminator_loss(
-            features_real, features_fake)
+            prediction_real, labels_real)
+        # calculate discriminator loss
 
         # set gradient of generator optimizer to zero and update generator weights
         self.generator_optimizer_.zero_grad()
@@ -335,7 +338,7 @@ class GanomalyNet(NeuralNet):
 
         generator_loss = generator_loss / \
             (self.module_.fraud_weight +
-             self.module_.appearant_weigh + self.module_.latent_weight)
+             self.module_.appearant_weight + self.module_.latent_weight)
 
         # calculate discriminator loss
         discriminator_loss = self.module_.discriminator_loss(
