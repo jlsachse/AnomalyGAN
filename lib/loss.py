@@ -9,6 +9,8 @@ Losses
 import torch
 
 ##
+
+
 def l1_loss(input, target):
     """ L1 Loss without reduce flag.
 
@@ -23,6 +25,8 @@ def l1_loss(input, target):
     return torch.mean(torch.abs(input - target))
 
 ##
+
+
 def l2_loss(input, target, size_average=True):
     """ L2 Loss without reduce flag.
 

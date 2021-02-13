@@ -13,14 +13,15 @@ import matplotlib.gridspec as gridspec
 
 
 def extract_mean_score(net, dataset_train):
-  
+
     X = dataset_train.X
-    X = tensor(X, device = net.device)
-    
+    X = tensor(X, device=net.device)
+
     scores = net.module_.forward(X)[0].cpu().detach().numpy()
     mean_score = np.mean(scores)
 
     return mean_score
+
 
 def rename_tensorboard_key(key):
 
@@ -34,10 +35,11 @@ def rename_tensorboard_key(key):
         prefix = 'Duration/'
     elif key in ['train_loss']:
         prefix = 'Overall_Loss/'
-        
-    key = prefix + key 
-    
+
+    key = prefix + key
+
     return key
+
 
 class GANomalyBoard(TensorBoard):
 
@@ -48,32 +50,34 @@ class GANomalyBoard(TensorBoard):
         self.plot_latent_shape = plot_latent_shape
 
         super().__init__(*args, **kwargs)
-    
+
     def on_epoch_end(self, net, dataset_train, **kwargs):
-        
+
         epoch = net.history[-1, 'epoch']
-        
+
         X, fake, latent_i, latent_o = self._extract_images(net, dataset_train)
         mean_score = extract_mean_score(net, dataset_train)
-        
+
         if self.plot_type == 'image':
             self.writer.add_image('Real and Fake/X', X, global_step=epoch)
-            self.writer.add_image('Real and Fake/fake', fake, global_step=epoch)
+            self.writer.add_image('Real and Fake/fake',
+                                  fake, global_step=epoch)
         else:
             self.writer.add_figure('Real and Fake/X', X, global_step=epoch)
-            self.writer.add_figure('Real and Fake/fake', fake, global_step=epoch)
+            self.writer.add_figure('Real and Fake/fake',
+                                   fake, global_step=epoch)
 
         self.writer.add_figure('Latent/in', latent_i, global_step=epoch)
         self.writer.add_figure('Latent/out', latent_o, global_step=epoch)
 
-        self.writer.add_scalar('Scores/mean_anomaly_score', mean_score, global_step=epoch)
-        
-        super().on_epoch_end(net, **kwargs)  # call super last
+        self.writer.add_scalar('Scores/mean_anomaly_score',
+                               mean_score, global_step=epoch)
 
+        super().on_epoch_end(net, **kwargs)  # call super last
 
     def _extract_images(self, net, dataset_train):
         generator = net.module_.generator
-        
+
         real = dataset_train.X
         real_tensor = tensor(real)
         fake_tensor, latent_i, latent_o = generator(real_tensor)
@@ -87,27 +91,27 @@ class GANomalyBoard(TensorBoard):
         latent_i = latent_i.cpu().detach().numpy()
         latent_o = latent_o.cpu().detach().numpy()
 
-
         if self.plot_type == 'lineplot':
 
             sns.set_style('whitegrid')
-            
+
             real = real.reshape((-1, self.plot_shape))
             fake = fake.reshape((-1, self.plot_shape))
 
-            real_figure = plt.figure(figsize=(10,8))
-            fake_figure = plt.figure(figsize=(10,8))
+            real_figure = plt.figure(figsize=(10, 8))
+            fake_figure = plt.figure(figsize=(10, 8))
 
             for index in range(len(real)):
                 real_axis = real_figure.add_subplot(4, 1, index + 1)
                 fake_axis = fake_figure.add_subplot(4, 1, index + 1)
-                real_plot = sns.lineplot(data=real[index], color='black', linewidth=1, ax = real_axis)
-                fake_plot = sns.lineplot(data=fake[index], color='black', linewidth=1, ax = fake_axis)
+                real_plot = sns.lineplot(
+                    data=real[index], color='black', linewidth=1, ax=real_axis)
+                fake_plot = sns.lineplot(
+                    data=fake[index], color='black', linewidth=1, ax=fake_axis)
                 real_plot.set(xticklabels=[])
                 fake_plot.set(xticklabels=[])
                 real_plot.set(ylim=(-0.05, 1.05))
                 fake_plot.set(ylim=(-0.05, 1.05))
-
 
         if self.plot_type == 'barplot':
 
@@ -116,94 +120,108 @@ class GANomalyBoard(TensorBoard):
             real = real.reshape((-1, self.plot_shape))
             fake = fake.reshape((-1, self.plot_shape))
 
-            real_figure = plt.figure(figsize=(10,8))
-            fake_figure = plt.figure(figsize=(10,8))
+            real_figure = plt.figure(figsize=(10, 8))
+            fake_figure = plt.figure(figsize=(10, 8))
 
             for index in range(len(real)):
                 real_axis = real_figure.add_subplot(4, 1, index + 1)
                 fake_axis = fake_figure.add_subplot(4, 1, index + 1)
-                real_plot = sns.barplot(y=real[index], x = [x for x in range(self.plot_shape)], color='black', ax = real_axis)
-                fake_plot = sns.barplot(y=fake[index], x = [x for x in range(self.plot_shape)], color='black', ax = fake_axis)
+                real_plot = sns.barplot(y=real[index], x=[x for x in range(
+                    self.plot_shape)], color='black', ax=real_axis)
+                fake_plot = sns.barplot(y=fake[index], x=[x for x in range(
+                    self.plot_shape)], color='black', ax=fake_axis)
                 real_plot.set(xticklabels=[])
                 fake_plot.set(xticklabels=[])
                 real_plot.set(ylim=(-0.05, 1.05))
                 fake_plot.set(ylim=(-0.05, 1.05))
 
-
         if self.plot_type == 'image':
             fake = fake.reshape((-1, 1, self.plot_shape, self.plot_shape))
             real = real.reshape((-1, 1, self.plot_shape, self.plot_shape))
-            real_figure = make_grid(real_tensor, nrow=int(np.sqrt(self.n_samples)))
-            fake_figure = make_grid(fake_tensor, nrow=int(np.sqrt(self.n_samples)))
-
+            real_figure = make_grid(
+                real_tensor, nrow=int(np.sqrt(self.n_samples)))
+            fake_figure = make_grid(
+                fake_tensor, nrow=int(np.sqrt(self.n_samples)))
 
         latent_i = latent_i.reshape((-1, self.plot_latent_shape))
         latent_o = latent_o.reshape((-1, self.plot_latent_shape))
 
-        latent_i_figure = plt.figure(figsize=(10,8))
-        latent_o_figure = plt.figure(figsize=(10,8))
+        latent_i_figure = plt.figure(figsize=(10, 8))
+        latent_o_figure = plt.figure(figsize=(10, 8))
 
         for index in range(4):
             latent_i_axis = latent_i_figure.add_subplot(4, 1, index + 1)
             latent_o_axis = latent_o_figure.add_subplot(4, 1, index + 1)
-            latent_i_plot = sns.lineplot(data=latent_i[index], color='black', linewidth=1, ax = latent_i_axis)
-            latent_o_plot = sns.lineplot(data=latent_o[index], color='black', linewidth=1, ax = latent_o_axis)
+            latent_i_plot = sns.lineplot(
+                data=latent_i[index], color='black', linewidth=1, ax=latent_i_axis)
+            latent_o_plot = sns.lineplot(
+                data=latent_o[index], color='black', linewidth=1, ax=latent_o_axis)
             latent_i_plot.set(xticklabels=[])
             latent_o_plot.set(xticklabels=[])
-        
+
         return real_figure, fake_figure, latent_i_figure, latent_o_figure
 
 
 def lineplot_comparison(result, first_line, second_line, title, xlabel, ylabel):
 
-    sns.set_style('darkgrid')
-    sns.set(rc={'figure.figsize':(20, 10)})
-
+    sns.set(rc={'figure.figsize': (12, 10)}, style='darkgrid')
     sns.set_context('notebook')
 
-
-    conditionFigure = plt.figure(constrained_layout=True)
-    cfSpec = gridspec.GridSpec(ncols=1, nrows=4, figure=conditionFigure)
-    conditionFigureAxis0 = conditionFigure.add_subplot(cfSpec[0, 0])
-    conditionFigureAxis1 = conditionFigure.add_subplot(cfSpec[1, 0])
-    conditionFigureAxis2 = conditionFigure.add_subplot(cfSpec[2, 0])
-    conditionFigureAxis3 = conditionFigure.add_subplot(cfSpec[3, 0])
-
+    line_figure = plt.figure(constrained_layout=True)
+    cfSpec = gridspec.GridSpec(ncols=1, nrows=4, figure=line_figure)
+    line_figure_axis0 = line_figure.add_subplot(cfSpec[0, 0])
+    line_figure_axis1 = line_figure.add_subplot(cfSpec[1, 0])
+    line_figure_axis2 = line_figure.add_subplot(cfSpec[2, 0])
+    line_figure_axis3 = line_figure.add_subplot(cfSpec[3, 0])
 
     ball_fault =\
-    pd.DataFrame(
-        [result[result['condition'] == 'Ball Fault'].iloc[0, :][first_line],
-         result[result['condition'] == 'Ball Fault'].iloc[0, :][second_line]]
-    ).T.rename({0: first_line, 1: second_line}, axis = 1)
-    p0 = sns.lineplot(data = ball_fault, ax = conditionFigureAxis0)
-    p0.set(xticklabels=[]) 
+        pd.DataFrame(
+            [result[result['condition'] == 'Ball Fault'].iloc[0, :][first_line],
+             result[result['condition'] == 'Ball Fault'].iloc[0, :][second_line]]
+        ).T.rename({0: first_line, 1: second_line}, axis=1)
+    sns.lineplot(data=ball_fault, ax=line_figure_axis0, linewidth=1)
+    line_figure_axis0.set(xticklabels=[])
+    line_figure_axis0.legend(loc='upper left')
+    line_figure_axis0.annotate('Ball Fault', xy=(0.99, 0.95), xycoords='axes fraction',
+                               horizontalalignment='right', verticalalignment='top')
 
     inner_race_fault =\
-    pd.DataFrame(
-        [result[result['condition'] == 'Inner Race Fault'].iloc[0, :][first_line],
-         result[result['condition'] == 'Inner Race Fault'].iloc[0, :][second_line]]
-    ).T.rename({0: first_line, 1: second_line}, axis = 1)
-    p1 = sns.lineplot(data = inner_race_fault, ax = conditionFigureAxis1)
-    p1.set(xticklabels=[]) 
+        pd.DataFrame(
+            [result[result['condition'] == 'Inner Race Fault'].iloc[0, :][first_line],
+             result[result['condition'] == 'Inner Race Fault'].iloc[0, :][second_line]]
+        ).T.rename({0: first_line, 1: second_line}, axis=1)
+    sns.lineplot(data=inner_race_fault, ax=line_figure_axis1, linewidth=1)
+    line_figure_axis1.set(xticklabels=[])
+    line_figure_axis1.legend([], [], frameon=False)
+    line_figure_axis1.annotate('Inner Race Fault', xy=(0.99, 0.95), xycoords='axes fraction',
+                               horizontalalignment='right', verticalalignment='top')
 
     outer_race_fault =\
-    pd.DataFrame(
-        [result[result['condition'] == 'Outer Race Fault'].iloc[0, :][first_line],
-         result[result['condition'] == 'Outer Race Fault'].iloc[0, :][second_line]]
-    ).T.rename({0: first_line, 1: second_line}, axis = 1)
-    p2 = sns.lineplot(data = outer_race_fault, ax = conditionFigureAxis2)
-    p2.set(xticklabels=[]) 
+        pd.DataFrame(
+            [result[result['condition'] == 'Outer Race Fault'].iloc[0, :][first_line],
+             result[result['condition'] == 'Outer Race Fault'].iloc[0, :][second_line]]
+        ).T.rename({0: first_line, 1: second_line}, axis=1)
+    sns.lineplot(data=outer_race_fault, ax=line_figure_axis2, linewidth=1)
+    line_figure_axis2.set(xticklabels=[])
+    line_figure_axis2.legend([], [], frameon=False)
+    line_figure_axis2.annotate('Outer Race Fault', xy=(0.99, 0.95), xycoords='axes fraction',
+                               horizontalalignment='right', verticalalignment='top')
 
     normal_baseline =\
-    pd.DataFrame(
-        [result[result['condition'] == 'Normal Baseline'].iloc[0, :][first_line],
-         result[result['condition'] == 'Normal Baseline'].iloc[0, :][second_line]]
-    ).T.rename({0: first_line, 1: second_line}, axis = 1)
-    sns.lineplot(data = normal_baseline, ax = conditionFigureAxis3);
+        pd.DataFrame(
+            [result[result['condition'] == 'Normal Baseline'].iloc[0, :][first_line],
+             result[result['condition'] == 'Normal Baseline'].iloc[0, :][second_line]]
+        ).T.rename({0: first_line, 1: second_line}, axis=1)
+    sns.lineplot(data=normal_baseline, ax=line_figure_axis3, linewidth=1)
+    line_figure_axis3.annotate('Normal Baseline', xy=(0.99, 0.95), xycoords='axes fraction',
+                               horizontalalignment='right', verticalalignment='top')
 
-    conditionFigureAxis3.set_xlabel('.', color=(0, 0, 0, 0))
-    conditionFigureAxis3.set_ylabel('.', color=(0, 0, 0, 0))
+    line_figure_axis3.legend([], [], frameon=False)
+    line_figure_axis3.set_xlabel('.', color=(0, 0, 0, 0))
+    line_figure_axis3.set_ylabel('.', color=(0, 0, 0, 0))
 
-    conditionFigure.text(0.5, 0, xlabel, ha='center')
-    conditionFigure.text(0, 0.5, ylabel, va='center', rotation='vertical')
-    conditionFigure.suptitle(title);
+    line_figure.text(0.5, 0, xlabel, ha='center')
+    line_figure.text(0, 0.5, ylabel, va='center', rotation='vertical')
+    line_figure.suptitle(title)
+
+    return line_figure

@@ -329,9 +329,10 @@ class GanomalyNet(NeuralNet):
             prediction_real, dtype=torch.float32, device=self.device).fill_(1.0)
 
         # calculate generator loss
-        fraud_loss = self.module_.fraud_loss(prediction_real, labels_real)
+        fraud_loss = self.module_.fraud_loss(features_real, features_fake)
         appearant_loss = self.module_.appearant_loss(X, fake)
         latent_loss = self.module_.latent_loss(latent_X, latent_fake)
+
         generator_loss = self.module_.fraud_weight * fraud_loss + \
             self.module_.appearant_weight * appearant_loss + \
             self.module_.latent_weight * latent_loss
@@ -342,7 +343,7 @@ class GanomalyNet(NeuralNet):
 
         # calculate discriminator loss
         discriminator_loss = self.module_.discriminator_loss(
-            features_real, features_fake)
+            prediction_real, labels_real)
 
         # calculate train loss
         train_loss = generator_loss + discriminator_loss
