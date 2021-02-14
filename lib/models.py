@@ -10,7 +10,7 @@ import numpy as np
 from tqdm import tqdm
 
 from torch.autograd import Variable
-from torch import ones_like
+from torch import ones_like, zeros_like
 import torch.optim as optim
 import torch.nn as nn
 import torch.utils.data
@@ -273,7 +273,9 @@ class GanomalyNet(NeuralNet):
         # create a tensor of ones
         # this is used for the discriminator
         labels_real = ones_like(
-            prediction_real, dtype=torch.float32, device=self.device).fill_(1.0)
+            prediction_real, dtype=torch.float32, device=self.device)
+        labels_fake = zeros_like(
+            prediction_fake, dtype=torch.float32, device=self.device)
 
         # calculate generator loss
         fraud_loss = self.module_.fraud_loss(features_real, features_fake)
@@ -283,9 +285,15 @@ class GanomalyNet(NeuralNet):
             self.module_.appearant_weight * appearant_loss + \
             self.module_.latent_weight * latent_loss
 
-        discriminator_loss = self.module_.discriminator_loss(
-            prediction_real, labels_real)
         # calculate discriminator loss
+        discriminator_loss_real = self.module_.discriminator_loss(
+            prediction_real, labels_real)
+
+        discriminator_loss_fake = self.discriminator_loss(
+            prediction_fake, labels_fake)
+
+        discriminator_loss = (discriminator_loss_real +
+                              discriminator_loss_fake) * 0.5
 
         # set gradient of generator optimizer to zero and update generator weights
         self.generator_optimizer_.zero_grad()
@@ -326,7 +334,9 @@ class GanomalyNet(NeuralNet):
         # create a tensor of ones
         # this is used for the discriminator
         labels_real = ones_like(
-            prediction_real, dtype=torch.float32, device=self.device).fill_(1.0)
+            prediction_real, dtype=torch.float32, device=self.device)
+        labels_fake = zeros_like(
+            prediction_fake, dtype=torch.float32, device=self.device)
 
         # calculate generator loss
         fraud_loss = self.module_.fraud_loss(features_real, features_fake)
@@ -342,8 +352,14 @@ class GanomalyNet(NeuralNet):
              self.module_.appearant_weight + self.module_.latent_weight)
 
         # calculate discriminator loss
-        discriminator_loss = self.module_.discriminator_loss(
+        discriminator_loss_real = self.module_.discriminator_loss(
             prediction_real, labels_real)
+
+        discriminator_loss_fake = self.discriminator_loss(
+            prediction_fake, labels_fake)
+
+        discriminator_loss = (discriminator_loss_real +
+                              discriminator_loss_fake) * 0.5
 
         # calculate train loss
         train_loss = generator_loss + discriminator_loss
@@ -352,6 +368,9 @@ class GanomalyNet(NeuralNet):
         # GridSearchCV then takes the lowest value
         generator_loss = -1 * generator_loss.item()
         train_loss = -1 * train_loss.item()
+
+        if discriminator_loss.item() < 1e-5:
+            discriminator.apply(weights_init)
 
         # return scores as dictionary
         return {'generator_loss': generator_loss, 'train_loss': train_loss}
