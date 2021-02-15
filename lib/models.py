@@ -1,41 +1,18 @@
-"""GANomaly
-"""
-# pylint: disable=C0301,E1101,W0622,C0103,R0902,R0915
-
-##
-from collections import OrderedDict
-import os
-import time
-import numpy as np
-from tqdm import tqdm
-
-from torch.autograd import Variable
+from numpy import concatenate
 from torch import ones_like, zeros_like
-import torch.optim as optim
 import torch.nn as nn
-import torch.utils.data
-import torchvision.utils as vutils
-
-from lib.networks import GeneratorNet1d, GeneratorNet2d, DiscriminatorNet1d, DiscriminatorNet2d, GeneratorNetFE, DiscriminatorNetFE, weights_init
-from lib.loss import l2_loss
 
 from skorch import NeuralNet
-from skorch.utils import to_tensor
-from skorch.utils import to_numpy
+from skorch.utils import to_tensor, to_numpy
+from skorch.callbacks import EpochTimer, PrintLog, PassthroughScoring
 
-from skorch.callbacks import EpochTimer
-from skorch.callbacks import PrintLog
-from skorch.callbacks import PassthroughScoring
+from lib.loss import l2_loss
+import lib.networks as nets
 
 
 class Ganomaly1d(nn.Module):
-    """GANomaly Class
-    """
 
-    @property
-    def name(self): return 'Ganomaly'
-
-    def __init__(self, input_size, n_z, n_channels, n_fm_discriminator, n_fm_generator, n_gpus, fraud_weight=1, appearant_weight=1, latent_weight=1, lambda_weight=0.5):
+    def __init__(self, input_size, n_z, n_channels, n_fm_discriminator, n_fm_generator, n_gpus, adversarial_weight=1, contextual_weight=1, encoder_weight=1, lambda_weight=0.5):
         super().__init__()
 
         self.input_size = input_size
@@ -44,33 +21,33 @@ class Ganomaly1d(nn.Module):
         self.n_fm_discriminator = n_fm_discriminator
         self.n_fm_generator = n_fm_generator
         self.n_gpus = n_gpus
-        self.fraud_weight = fraud_weight
-        self.appearant_weight = appearant_weight
-        self.latent_weight = latent_weight
+        self.adversarial_weight = adversarial_weight
+        self.contextual_weight = contextual_weight
+        self.encoder_weight = encoder_weight
         self.lambda_weight = lambda_weight
 
         self.discriminator_loss = nn.BCELoss()
 
-        self.fraud_loss = l2_loss
-        self.appearant_loss = nn.L1Loss()
-        self.latent_loss = l2_loss
+        self.adversarial_loss = l2_loss
+        self.contextual_loss = nn.L1Loss()
+        self.encoder_loss = l2_loss
 
-        self.discriminator = DiscriminatorNet1d(
+        self.discriminator = nets.DiscriminatorNet1d(
             input_size=self.input_size,
             n_z=self.n_z,
             n_channels=self.n_channels,
             n_feature_maps=self.n_fm_discriminator,
             n_gpus=self.n_gpus
         )
-        self.discriminator.apply(weights_init)
-        self.generator = GeneratorNet1d(
+        self.discriminator.apply(nets.weights_init)
+        self.generator = nets.GeneratorNet1d(
             input_size=self.input_size,
             n_z=self.n_z,
             n_channels=self.n_channels,
             n_feature_maps=self.n_fm_generator,
             n_gpus=self.n_gpus
         )
-        self.generator.apply(weights_init)
+        self.generator.apply(nets.weights_init)
 
     def forward(self, X, y=None):
 
@@ -80,23 +57,18 @@ class Ganomaly1d(nn.Module):
         latent_differences = (
             latent_real - latent_fake).view(latent_real.size()[0], -1)
 
-        appearant_loss = torch.mean(appearant_differences.abs(), dim=1)
-        latent_loss = torch.mean(torch.pow(latent_differences, 2), dim=1)
+        contextual_loss = torch.mean(appearant_differences.abs(), dim=1)
+        encoder_loss = torch.mean(torch.pow(latent_differences, 2), dim=1)
 
-        error = self.lambda_weight * appearant_loss + \
-            (1 - self.lambda_weight) * latent_loss
+        error = self.lambda_weight * contextual_loss + \
+            (1 - self.lambda_weight) * encoder_loss
 
         return error.reshape(error.size(0)), X, fake, latent_real, latent_fake
 
 
 class Ganomaly2d(nn.Module):
-    """GANomaly Class
-    """
 
-    @property
-    def name(self): return 'Ganomaly'
-
-    def __init__(self, input_size, n_z, n_channels, n_fm_discriminator, n_fm_generator, n_gpus, fraud_weight=1, appearant_weight=1, latent_weight=1, lambda_weight=0.5):
+    def __init__(self, input_size, n_z, n_channels, n_fm_discriminator, n_fm_generator, n_gpus, adversarial_weight=1, contextual_weight=1, encoder_weight=1, lambda_weight=0.5):
         super().__init__()
 
         self.input_size = input_size
@@ -105,33 +77,33 @@ class Ganomaly2d(nn.Module):
         self.n_fm_discriminator = n_fm_discriminator
         self.n_fm_generator = n_fm_generator
         self.n_gpus = n_gpus
-        self.fraud_weight = fraud_weight
-        self.appearant_weight = appearant_weight
-        self.latent_weight = latent_weight
+        self.adversarial_weight = adversarial_weight
+        self.contextual_weight = contextual_weight
+        self.encoder_weight = encoder_weight
         self.lambda_weight = lambda_weight
 
         self.discriminator_loss = nn.BCELoss()
 
-        self.fraud_loss = l2_loss
-        self.appearant_loss = nn.L1Loss()
-        self.latent_loss = l2_loss
+        self.adversarial_loss = l2_loss
+        self.contextual_loss = nn.L1Loss()
+        self.encoder_loss = l2_loss
 
-        self.discriminator = DiscriminatorNet2d(
+        self.discriminator = nets.DiscriminatorNet2d(
             input_size=self.input_size,
             n_z=self.n_z,
             n_channels=self.n_channels,
             n_feature_maps=self.n_fm_discriminator,
             n_gpus=self.n_gpus
         )
-        self.discriminator.apply(weights_init)
-        self.generator = GeneratorNet2d(
+        self.discriminator.apply(nets.weights_init)
+        self.generator = nets.GeneratorNet2d(
             input_size=self.input_size,
             n_z=self.n_z,
             n_channels=self.n_channels,
             n_feature_maps=self.n_fm_generator,
             n_gpus=self.n_gpus
         )
-        self.generator.apply(weights_init)
+        self.generator.apply(nets.weights_init)
 
     def forward(self, X, y=None):
 
@@ -141,48 +113,43 @@ class Ganomaly2d(nn.Module):
         latent_differences = (
             latent_real - latent_fake).view(latent_real.size()[0], -1)
 
-        appearant_loss = torch.mean(appearant_differences.abs(), dim=1)
-        latent_loss = torch.mean(torch.pow(latent_differences, 2), dim=1)
+        contextual_loss = torch.mean(appearant_differences.abs(), dim=1)
+        encoder_loss = torch.mean(torch.pow(latent_differences, 2), dim=1)
 
-        error = self.lambda_weight * appearant_loss + \
-            (1 - self.lambda_weight) * latent_loss
+        error = self.lambda_weight * contextual_loss + \
+            (1 - self.lambda_weight) * encoder_loss
 
         return error.reshape(error.size(0)), X, fake, latent_real, latent_fake
 
 
 class GanomalyFE(nn.Module):
-    """GANomaly Class
-    """
 
-    @property
-    def name(self): return 'GanomalyFE'
-
-    def __init__(self, input_size, n_gpus, fraud_weight=1, appearant_weight=1, latent_weight=1, lambda_weight=0.5):
+    def __init__(self, input_size, n_gpus, adversarial_weight=1, contextual_weight=1, encoder_weight=1, lambda_weight=0.5):
         super().__init__()
 
         self.input_size = input_size
         self.n_gpus = n_gpus
-        self.fraud_weight = fraud_weight
-        self.appearant_weight = appearant_weight
-        self.latent_weight = latent_weight
+        self.adversarial_weight = adversarial_weight
+        self.contextual_weight = contextual_weight
+        self.encoder_weight = encoder_weight
         self.lambda_weight = lambda_weight
 
         self.discriminator_loss = nn.BCELoss()
 
-        self.fraud_loss = l2_loss
-        self.appearant_loss = nn.L1Loss()
-        self.latent_loss = l2_loss
+        self.adversarial_loss = l2_loss
+        self.contextual_loss = nn.L1Loss()
+        self.encoder_loss = l2_loss
 
-        self.discriminator = DiscriminatorNetFE(
+        self.discriminator = nets.DiscriminatorNetFE(
             input_size=self.input_size,
             n_gpus=self.n_gpus
         )
-        self.discriminator.apply(weights_init)
-        self.generator = GeneratorNetFE(
+        self.discriminator.apply(nets.weights_init)
+        self.generator = nets.GeneratorNetFE(
             input_size=self.input_size,
             n_gpus=self.n_gpus
         )
-        self.generator.apply(weights_init)
+        self.generator.apply(nets.weights_init)
 
     def forward(self, X, y=None):
 
@@ -192,11 +159,11 @@ class GanomalyFE(nn.Module):
         latent_differences = (
             latent_real - latent_fake).view(latent_real.size()[0], -1)
 
-        appearant_loss = torch.mean(appearant_differences.abs(), dim=1)
-        latent_loss = torch.mean(torch.pow(latent_differences, 2), dim=1)
+        contextual_loss = torch.mean(appearant_differences.abs(), dim=1)
+        encoder_loss = torch.mean(torch.pow(latent_differences, 2), dim=1)
 
-        error = self.lambda_weight * appearant_loss + \
-            (1 - self.lambda_weight) * latent_loss
+        error = self.lambda_weight * contextual_loss + \
+            (1 - self.lambda_weight) * encoder_loss
 
         return error.reshape(error.size(0)), X, fake, latent_real, latent_fake
 
@@ -239,16 +206,16 @@ class GanomalyNet(NeuralNet):
                 name='generator_loss',
                 on_train=True
             )),
-            ('fraud_loss', PassthroughScoring(
-                name='fraud_loss',
+            ('adversarial_loss', PassthroughScoring(
+                name='adversarial_loss',
                 on_train=True
             )),
-            ('appearant_loss', PassthroughScoring(
-                name='appearant_loss',
+            ('contextual_loss', PassthroughScoring(
+                name='contextual_loss',
                 on_train=True
             )),
-            ('latent_loss', PassthroughScoring(
-                name='latent_loss',
+            ('encoder_loss', PassthroughScoring(
+                name='encoder_loss',
                 on_train=True
             )),
             ('print_log', PrintLog()),
@@ -278,18 +245,19 @@ class GanomalyNet(NeuralNet):
             prediction_fake, dtype=torch.float32, device=self.device)
 
         # calculate generator loss
-        fraud_loss = self.module_.fraud_loss(features_real, features_fake)
-        appearant_loss = self.module_.appearant_loss(Xi, fake)
-        latent_loss = self.module_.latent_loss(latent_Xi, latent_fake)
-        generator_loss = self.module_.fraud_weight * fraud_loss + \
-            self.module_.appearant_weight * appearant_loss + \
-            self.module_.latent_weight * latent_loss
+        adversarial_loss = self.module_.adversarial_loss(
+            features_real, features_fake)
+        contextual_loss = self.module_.contextual_loss(Xi, fake)
+        encoder_loss = self.module_.encoder_loss(latent_Xi, latent_fake)
+        generator_loss = self.module_.adversarial_weight * adversarial_loss + \
+            self.module_.contextual_weight * contextual_loss + \
+            self.module_.encoder_weight * encoder_loss
 
         # calculate discriminator loss
         discriminator_loss_real = self.module_.discriminator_loss(
             prediction_real, labels_real)
 
-        discriminator_loss_fake = self.discriminator_loss(
+        discriminator_loss_fake = self.module_.discriminator_loss(
             prediction_fake, labels_fake)
 
         discriminator_loss = (discriminator_loss_real +
@@ -307,9 +275,9 @@ class GanomalyNet(NeuralNet):
 
         # record the different loss values in the models training history
         self.history.record_batch('generator_loss', generator_loss.item())
-        self.history.record_batch('fraud_loss', fraud_loss.item())
-        self.history.record_batch('appearant_loss', appearant_loss.item())
-        self.history.record_batch('latent_loss', latent_loss.item())
+        self.history.record_batch('adversarial_loss', adversarial_loss.item())
+        self.history.record_batch('contextual_loss', contextual_loss.item())
+        self.history.record_batch('encoder_loss', encoder_loss.item())
 
         self.history.record_batch(
             'discriminator_loss', discriminator_loss.item())
@@ -339,23 +307,24 @@ class GanomalyNet(NeuralNet):
             prediction_fake, dtype=torch.float32, device=self.device)
 
         # calculate generator loss
-        fraud_loss = self.module_.fraud_loss(features_real, features_fake)
-        appearant_loss = self.module_.appearant_loss(X, fake)
-        latent_loss = self.module_.latent_loss(latent_X, latent_fake)
+        adversarial_loss = self.module_.adversarial_loss(
+            features_real, features_fake)
+        contextual_loss = self.module_.contextual_loss(X, fake)
+        encoder_loss = self.module_.encoder_loss(latent_X, latent_fake)
 
-        generator_loss = self.module_.fraud_weight * fraud_loss + \
-            self.module_.appearant_weight * appearant_loss + \
-            self.module_.latent_weight * latent_loss
+        generator_loss = self.module_.adversarial_weight * adversarial_loss + \
+            self.module_.contextual_weight * contextual_loss + \
+            self.module_.encoder_weight * encoder_loss
 
         generator_loss = generator_loss / \
-            (self.module_.fraud_weight +
-             self.module_.appearant_weight + self.module_.latent_weight)
+            (self.module_.adversarial_weight +
+             self.module_.contextual_weight + self.module_.encoder_weight)
 
         # calculate discriminator loss
         discriminator_loss_real = self.module_.discriminator_loss(
             prediction_real, labels_real)
 
-        discriminator_loss_fake = self.discriminator_loss(
+        discriminator_loss_fake = self.module_.discriminator_loss(
             prediction_fake, labels_fake)
 
         discriminator_loss = (discriminator_loss_real +
@@ -370,7 +339,7 @@ class GanomalyNet(NeuralNet):
         train_loss = -1 * train_loss.item()
 
         if discriminator_loss.item() < 1e-5:
-            discriminator.apply(weights_init)
+            discriminator.apply(nets.weights_init)
 
         # return scores as dictionary
         return {'generator_loss': generator_loss, 'train_loss': train_loss}
@@ -384,7 +353,7 @@ class GanomalyNet(NeuralNet):
             yp = nonlin(yp)
             y_probas.append(to_numpy(yp))
         stacked = list(zip(*y_probas))
-        y_proba = [np.concatenate(array) for array in stacked]
+        y_proba = [concatenate(array) for array in stacked]
 
         return y_proba
 
