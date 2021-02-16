@@ -80,8 +80,6 @@ class Encoder1d(nn.Module):
         n_feature_maps_in = n_feature_maps
         n_feature_maps_out = n_feature_maps * 2
 
-        # add second last layer which has a padding of 0
-        n_feature_maps *= 2
         main.add_module('pyramid-{0}-{1}-convt'.format(n_feature_maps_in, n_feature_maps_out),
                         nn.Conv1d(n_feature_maps_in, n_feature_maps_out, 16, stride=4, padding=0, bias=False))
         main.add_module('pyramid-{0}-batchnorm'.format(n_feature_maps_out),

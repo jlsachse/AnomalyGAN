@@ -1,6 +1,7 @@
 from numpy import concatenate
 from torch import ones_like, zeros_like
 import torch.nn as nn
+import torch
 
 from skorch import NeuralNet
 from skorch.utils import to_tensor, to_numpy
