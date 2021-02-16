@@ -37,7 +37,7 @@ class FeatureExtractor(TransformerMixin):
         margin_indicator = maximum_value / square_root_amplitude
         skewness_indicator = skewness_value / (root_mean_square_value ** 4)
 
-        # create list of calculated values 
+        # create list of calculated values
         X = [
             maximum_value,
             mean_value,
@@ -54,9 +54,9 @@ class FeatureExtractor(TransformerMixin):
             square_root_amplitude,
             margin_indicator,
             skewness_indicator
-            ]
-        
-        # transform list into array and 
+        ]
+
+        # transform list into array and
         X = np.array(X)
 
         # transpose array
@@ -108,7 +108,7 @@ class ArraySTFT(TransformerMixin):
         return self
 
     def transform(self, X):
-        
+
         # calculate spectrogram for each sample
         X = [self._calculate_spectrogram(array) for array in X]
         X = np.array(X)
@@ -119,7 +119,7 @@ class ArraySTFT(TransformerMixin):
 
         # calculate the dimension of the spectrogram
         # by taking the square root of the signal length
-        spectrogram_dim  = int(np.sqrt(len(array)))
+        spectrogram_dim = int(np.sqrt(len(array)))
 
         # calculate the spectrogram
         # the window length is set to two times the spectrogram
@@ -142,7 +142,7 @@ class ArrayFFT(TransformerMixin):
         return self
 
     def transform(self, X):
-        
+
         # calculate frequency spectrum for each sample
         X = [self._calculate_frequency_spectrum(array) for array in X]
         X = np.array(X)
@@ -150,7 +150,7 @@ class ArrayFFT(TransformerMixin):
         return X
 
     def _calculate_frequency_spectrum(self, array):
-        
+
         # calculate the length of the frequency spectrum
         frequency_spectrum_len = len(array) // 2
 
@@ -161,9 +161,11 @@ class ArrayFFT(TransformerMixin):
         frequency_spectrum = frequency_spectrum[:frequency_spectrum_len]
 
         # take amplitude and normalize the frequency spectrum
-        frequency_spectrum = np.abs(frequency_spectrum) / len(frequency_spectrum)
+        frequency_spectrum = np.abs(
+            frequency_spectrum) / len(frequency_spectrum)
 
         return frequency_spectrum
+
 
 class ArrayMinMaxScaler(TransformerMixin):
 
@@ -177,12 +179,8 @@ class ArrayMinMaxScaler(TransformerMixin):
 
         X_min = self.X_min
         X_max = self.X_max
-        
+
         # scale each sample between zero and one
-        X = (X - X_min) / (X_max - X_min)
+        X = [-1 + 2*((x - x.min()) / (x.max() - x.min())) for x in X]
 
         return X
-
-
-
-

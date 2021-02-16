@@ -230,7 +230,7 @@ class GanomalyNet(NeuralNet):
         discriminator = self.module_.discriminator
         generator = self.module_.generator
 
-        # forward the generator and obtain it's data
+        # forward the generator and obtain its data
         fake, latent_Xi, latent_fake = generator(Xi)
 
         # evaluate real and fake data with the discriminator
@@ -256,10 +256,8 @@ class GanomalyNet(NeuralNet):
         # calculate discriminator loss
         discriminator_loss_real = self.module_.discriminator_loss(
             prediction_real, labels_real)
-
         discriminator_loss_fake = self.module_.discriminator_loss(
             prediction_fake, labels_fake)
-
         discriminator_loss = (discriminator_loss_real +
                               discriminator_loss_fake) * 0.5
 
@@ -278,11 +276,10 @@ class GanomalyNet(NeuralNet):
         self.history.record_batch('adversarial_loss', adversarial_loss.item())
         self.history.record_batch('contextual_loss', contextual_loss.item())
         self.history.record_batch('encoder_loss', encoder_loss.item())
-
         self.history.record_batch(
             'discriminator_loss', discriminator_loss.item())
 
-        # return loss for skorch
+        # return train loss for skorch
         return {'loss': generator_loss + discriminator_loss}
 
     def score(self, X, y=None):

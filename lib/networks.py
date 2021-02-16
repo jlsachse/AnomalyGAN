@@ -80,6 +80,8 @@ class Encoder1d(nn.Module):
         n_feature_maps_in = n_feature_maps
         n_feature_maps_out = n_feature_maps * 2
 
+        # add second last layer which has a padding of 0
+        n_feature_maps *= 2
         main.add_module('pyramid-{0}-{1}-convt'.format(n_feature_maps_in, n_feature_maps_out),
                         nn.Conv1d(n_feature_maps_in, n_feature_maps_out, 16, stride=4, padding=0, bias=False))
         main.add_module('pyramid-{0}-batchnorm'.format(n_feature_maps_out),
@@ -91,7 +93,6 @@ class Encoder1d(nn.Module):
         # its input and thus a stride of 1; this layer
         # converts the 2d representation into the 1d latent vector
         n_feature_maps *= 2
-
         main.add_module('final-{0}-{1}-convt'.format(n_feature_maps, 1),
                         nn.Conv1d(n_feature_maps, n_z, 9, stride=1, padding=0, bias=False))
 
@@ -115,22 +116,36 @@ class Decoder1d(nn.Module):
     def __init__(self, input_size, n_z, n_channels, n_feature_maps, n_gpus):
         super().__init__()
 
+        # n_gpus is later needed for the forward-method
         self.n_gpus = n_gpus
 
+        # set stride and padding to 8/4 in the first layer
+        # if the input_size equals 1568 (case for frequency spectra)
         stride = 8 if input_size == 1568 else 4
         padding = 4 if input_size == 1568 else 6
 
         n_layers = 0
 
+        # calculate layers based on input size
+        # divide input size by 4 as each layer
+        # changes its input by the same factor
         while input_size >= 12:
             n_layers += 1
             input_size //= 4
 
-        n_intermediate_layers = n_layers - 3 if n_layers >= 3 else 0
-        n_feature_maps = n_feature_maps * 2 ** (n_intermediate_layers + 1)
+        # calculate layers created by loop
+        # three layers are created outside
+        # of the loop
+        # also calculate the amount of feature maps
+        n_loop_layers = n_layers - 3 if n_layers >= 3 else 0
+        n_feature_maps = n_feature_maps * 2 ** (n_loop_layers + 1)
 
+        # initialize sequential container for the layers
         main = nn.Sequential()
 
+        # initialize the first layer with ReLU as activation
+        # this layer takes the latent vector and converts it
+        # into a vector of length 9 with n_feature_maps
         main.add_module('initial-{0}-{1}-convt'.format(n_z, n_feature_maps),
                         nn.ConvTranspose1d(n_z, n_feature_maps, 9, stride=1, bias=False))
         main.add_module('pyramid-{0}-batchnorm'.format(n_feature_maps),
@@ -138,9 +153,13 @@ class Decoder1d(nn.Module):
         main.add_module('initial-{0}-relu'.format(n_feature_maps),
                         nn.ReLU(True))
 
+        # calculate feature maps for second layer
         n_feature_maps_in = n_feature_maps
         n_feature_maps_out = n_feature_maps // 2
 
+        # create second layer, which has a padding of 0
+        # and output padding of 1 to create the same dimensions
+        # as in encoder
         main.add_module('pyramid-{0}-{1}-convt'.format(n_feature_maps_in, n_feature_maps_out),
                         nn.ConvTranspose1d(n_feature_maps_in, n_feature_maps_out, 16, stride=4, padding=0, output_padding=1, bias=False))
         main.add_module('pyramid-{0}-batchnorm'.format(n_feature_maps_out),
@@ -150,7 +169,10 @@ class Decoder1d(nn.Module):
 
         n_feature_maps //= 2
 
-        for _ in range(n_intermediate_layers):
+        # create stacks of one transposed convolutional, one batchnorm
+        # and one ReLU layer; each time the amount of
+        # feature maps is divided by 2
+        for _ in range(n_loop_layers):
             n_feature_maps_in = n_feature_maps
             n_feature_maps_out = n_feature_maps // 2
 
@@ -163,6 +185,9 @@ class Decoder1d(nn.Module):
 
             n_feature_maps //= 2
 
+        # add last layer with tanh as activation
+        # after this layer the output has the same
+        # dimensions as the input of the encoder
         main.add_module('final-{0}-{1}-convt'.format(n_feature_maps, n_channels),
                         nn.ConvTranspose1d(n_feature_maps, n_channels, 16, stride=stride, padding=padding, bias=False))
         main.add_module('final-{0}-tanh'.format(n_channels),
@@ -170,6 +195,9 @@ class Decoder1d(nn.Module):
 
         self.main = main
 
+    # forward function calculates the output of the
+    # sequential container; there is one or multiple gpus
+    # use data_parallel otherwise use the cpu
     def forward(self, input):
         if self.n_gpus >= 1:
             output = nn.parallel.data_parallel(
@@ -373,7 +401,6 @@ class DiscriminatorNet1d(nn.Module):
         features = self.features(x)
         prediction = self.classifier(features)
         prediction = prediction.view(-1, 1).squeeze(1)
-
         return prediction, features
 
 
@@ -384,16 +411,26 @@ class GeneratorNet1d(nn.Module):
 
     def __init__(self, input_size, n_z, n_channels, n_feature_maps, n_gpus):
         super().__init__()
+        # initialize the encoder for real data
         self.real_encoder = Encoder1d(
             input_size, n_z, n_channels, n_feature_maps, n_gpus)
+
+        # initialize the decoder
         self.decoder = Decoder1d(
             input_size, n_z, n_channels, n_feature_maps, n_gpus)
+
+        # initialize the encoder for fake data
         self.fake_encoder = Encoder1d(
             input_size, n_z, n_channels, n_feature_maps, n_gpus)
 
     def forward(self, x):
+        # obtain latent representation of the autoencoder
         latent_real = self.real_encoder(x)
+
+        # obtain reconstructed (fake) data
         fake = self.decoder(latent_real)
+
+        # obtain latent representation of fake data
         latent_fake = self.fake_encoder(fake)
         return fake, latent_real, latent_fake
 
@@ -405,18 +442,26 @@ class DiscriminatorNet2d(nn.Module):
 
     def __init__(self, input_size, n_z, n_channels, n_feature_maps, n_gpus):
         super().__init__()
+        # initialize the encoder
         model = Encoder2d(input_size, n_z, n_channels, n_feature_maps, n_gpus)
+
+        # list layers of the encoder
         layers = list(model.main.children())
 
+        # all but last layer for feature matching loss
         self.features = nn.Sequential(*layers[:-1])
+
+        # create classifier with sigmoid
         self.classifier = nn.Sequential(layers[-1])
         self.classifier.add_module('Sigmoid', nn.Sigmoid())
 
     def forward(self, x):
+        # get features for x
         features = self.features(x)
+
+        # get prediction for x
         prediction = self.classifier(features)
         prediction = prediction.view(-1, 1).squeeze(1)
-
         return prediction, features
 
 
