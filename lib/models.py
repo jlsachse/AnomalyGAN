@@ -72,6 +72,8 @@ class Ganomaly2d(nn.Module):
     def __init__(self, input_size, n_z, n_channels, n_fm_discriminator, n_fm_generator, n_gpus, adversarial_weight=1, contextual_weight=1, encoder_weight=1, lambda_weight=0.5):
         super().__init__()
 
+        print()
+
         self.input_size = input_size
         self.n_channels = n_channels
         self.n_z = n_z

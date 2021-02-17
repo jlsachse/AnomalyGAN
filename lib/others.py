@@ -53,8 +53,8 @@ def build_model(model, device, max_epochs, batch_size, lr, beta1, beta2, workers
 
     module_kwargs = ['input_size', 'n_z', 'n_channels',
                      'n_gpus', 'n_fm_discriminator',
-                     'n_fm_generator', 'fraud_weight', 'appearant_weight',
-                     'latent_weight', 'lambda_weight']
+                     'n_fm_generator', 'adversarial_weight', 'contextual_weight',
+                     'encoder_weight', 'lambda_weight']
 
     module_kwargs = {'module__' + key: value for key,
                      value in kwargs.items() if key in module_kwargs}
