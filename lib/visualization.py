@@ -27,7 +27,7 @@ def rename_tensorboard_key(key):
 
     prefix = 'Not_Specified/'
 
-    if key in ['fraud_loss', 'appearant_loss', 'latent_loss']:
+    if key in ['adversarial_loss', 'contextual_loss', 'encoder_loss']:
         prefix = 'Generator_Losses/'
     elif key in ['discriminator_loss', 'generator_loss']:
         prefix = 'Player_Losses/'
@@ -55,20 +55,20 @@ class GANomalyBoard(TensorBoard):
 
         epoch = net.history[-1, 'epoch']
 
-        X, fake, latent_i, latent_o = self._extract_images(net, dataset_train)
+        plots = self._extract_images(net, dataset_train)
         mean_score = extract_mean_score(net, dataset_train)
 
         if self.plot_type == 'image':
-            self.writer.add_image('Real and Fake/X', X, global_step=epoch)
-            self.writer.add_image('Real and Fake/fake',
-                                  fake, global_step=epoch)
+            self.writer.add_image('Tensors/X', plots[0], global_step=epoch)
+            self.writer.add_image('Tensors/fake',
+                                  plots[1], global_step=epoch)
+            self.writer.add_figure(
+                'Tensors/latent', plots[2], global_step=epoch)
         else:
-            self.writer.add_figure('Real and Fake/X', X, global_step=epoch)
-            self.writer.add_figure('Real and Fake/fake',
-                                   fake, global_step=epoch)
-
-        self.writer.add_figure('Latent/in', latent_i, global_step=epoch)
-        self.writer.add_figure('Latent/out', latent_o, global_step=epoch)
+            self.writer.add_figure('Tensors/real_fake',
+                                   plots[0], global_step=epoch)
+            self.writer.add_figure('Tensors/latent',
+                                   plots[1], global_step=epoch)
 
         self.writer.add_scalar('Scores/mean_anomaly_score',
                                mean_score, global_step=epoch)
@@ -91,6 +91,19 @@ class GANomalyBoard(TensorBoard):
         latent_i = latent_i.cpu().detach().numpy()
         latent_o = latent_o.cpu().detach().numpy()
 
+        latent_i = latent_i.reshape((-1, self.plot_latent_shape))
+        latent_o = latent_o.reshape((-1, self.plot_latent_shape))
+
+        latent_figure = plt.figure(figsize=(10, 8))
+
+        for index in range(4):
+            latent_axis = latent_figure.add_subplot(4, 1, index + 1)
+            latent_axis = sns.lineplot(
+                data=latent_i[index], color='black', linewidth=1, ax=latent_axis, alpha=0.7)
+            latent_axis = sns.lineplot(
+                data=latent_o[index], color='orange', linewidth=1, ax=latent_axis, alpha=0.7)
+            latent_axis.set(xticklabels=[])
+
         if self.plot_type == 'lineplot':
 
             sns.set_style('whitegrid')
@@ -98,20 +111,16 @@ class GANomalyBoard(TensorBoard):
             real = real.reshape((-1, self.plot_shape))
             fake = fake.reshape((-1, self.plot_shape))
 
-            real_figure = plt.figure(figsize=(10, 8))
-            fake_figure = plt.figure(figsize=(10, 8))
+            figure = plt.figure(figsize=(10, 8))
 
             for index in range(len(real)):
-                real_axis = real_figure.add_subplot(4, 1, index + 1)
-                fake_axis = fake_figure.add_subplot(4, 1, index + 1)
-                real_plot = sns.lineplot(
-                    data=real[index], color='black', linewidth=1, ax=real_axis)
-                fake_plot = sns.lineplot(
-                    data=fake[index], color='black', linewidth=1, ax=fake_axis)
-                real_plot.set(xticklabels=[])
-                fake_plot.set(xticklabels=[])
-                real_plot.set(ylim=(-0.05, 1.05))
-                fake_plot.set(ylim=(-0.05, 1.05))
+                axis = figure.add_subplot(4, 1, index + 1)
+                axis = sns.lineplot(
+                    data=real[index], color='black', linewidth=1, ax=axis, alpha=0.7)
+                axis = sns.lineplot(
+                    data=fake[index], color='orange', linewidth=1, ax=axis, alpha=0.7)
+                axis.set(xticklabels=[])
+            return figure, latent_figure
 
         if self.plot_type == 'barplot':
 
@@ -120,20 +129,16 @@ class GANomalyBoard(TensorBoard):
             real = real.reshape((-1, self.plot_shape))
             fake = fake.reshape((-1, self.plot_shape))
 
-            real_figure = plt.figure(figsize=(10, 8))
-            fake_figure = plt.figure(figsize=(10, 8))
+            figure = plt.figure(figsize=(10, 8))
 
             for index in range(len(real)):
-                real_axis = real_figure.add_subplot(4, 1, index + 1)
-                fake_axis = fake_figure.add_subplot(4, 1, index + 1)
-                real_plot = sns.barplot(y=real[index], x=[x for x in range(
-                    self.plot_shape)], color='black', ax=real_axis)
-                fake_plot = sns.barplot(y=fake[index], x=[x for x in range(
-                    self.plot_shape)], color='black', ax=fake_axis)
-                real_plot.set(xticklabels=[])
-                fake_plot.set(xticklabels=[])
-                real_plot.set(ylim=(-0.05, 1.05))
-                fake_plot.set(ylim=(-0.05, 1.05))
+                axis = figure.add_subplot(4, 1, index + 1)
+                axis = sns.barplot(y=real[index], x=[x for x in range(
+                    self.plot_shape)], color='black', ax=axis, alpha=0.7)
+                axis = sns.barplot(y=fake[index], x=[x for x in range(
+                    self.plot_shape)], color='orange', ax=axis, alpha=0.7)
+                axis.set(xticklabels=[])
+            return figure, latent_figure
 
         if self.plot_type == 'image':
             fake = fake.reshape((-1, 1, self.plot_shape, self.plot_shape))
@@ -142,24 +147,7 @@ class GANomalyBoard(TensorBoard):
                 real_tensor, nrow=int(np.sqrt(self.n_samples)))
             fake_figure = make_grid(
                 fake_tensor, nrow=int(np.sqrt(self.n_samples)))
-
-        latent_i = latent_i.reshape((-1, self.plot_latent_shape))
-        latent_o = latent_o.reshape((-1, self.plot_latent_shape))
-
-        latent_i_figure = plt.figure(figsize=(10, 8))
-        latent_o_figure = plt.figure(figsize=(10, 8))
-
-        for index in range(4):
-            latent_i_axis = latent_i_figure.add_subplot(4, 1, index + 1)
-            latent_o_axis = latent_o_figure.add_subplot(4, 1, index + 1)
-            latent_i_plot = sns.lineplot(
-                data=latent_i[index], color='black', linewidth=1, ax=latent_i_axis)
-            latent_o_plot = sns.lineplot(
-                data=latent_o[index], color='black', linewidth=1, ax=latent_o_axis)
-            latent_i_plot.set(xticklabels=[])
-            latent_o_plot.set(xticklabels=[])
-
-        return real_figure, fake_figure, latent_i_figure, latent_o_figure
+            return real_figure, fake_figure, latent_figure
 
 
 def lineplot_comparison(result, first_line, second_line, title, xlabel, ylabel):

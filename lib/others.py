@@ -67,14 +67,11 @@ def build_model(model, device, max_epochs, batch_size, lr, beta1, beta2, workers
             GANomalyBoard(
                 summary_writer,
                 key_mapper=rename_tensorboard_key,
-                close_after_train=False,
                 plot_type=plot_type,
                 plot_shape=plot_shape,
                 n_samples=n_samples,
                 plot_latent_shape=plot_latent_shape
             )
-
-        callbacks.append(ganomaly_board)
 
     output_model = GanomalyNet(
         model,
@@ -100,6 +97,7 @@ def build_model(model, device, max_epochs, batch_size, lr, beta1, beta2, workers
         iterator_train__shuffle=True,
         iterator_train__num_workers=workers,
         iterator_valid__num_workers=workers,
+        callbacks=callbacks + [ganomaly_board]
     )
 
     return output_model
