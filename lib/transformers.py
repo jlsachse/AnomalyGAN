@@ -165,22 +165,3 @@ class ArrayFFT(TransformerMixin):
             frequency_spectrum) / len(frequency_spectrum)
 
         return frequency_spectrum
-
-
-class ArrayMinMaxScaler(TransformerMixin):
-
-    def fit(self, X, y=None):
-        self.X_min = X.min()
-        self.X_max = X.max()
-
-        return self
-
-    def transform(self, X):
-
-        X_min = self.X_min
-        X_max = self.X_max
-
-        # scale each sample between zero and one
-        X = [-1 + 2*((x - x.min()) / (x.max() - x.min())) for x in X]
-
-        return X

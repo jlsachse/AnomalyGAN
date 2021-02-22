@@ -1,11 +1,10 @@
-""" Network architectures.
-"""
-# pylint: disable=W0221,W0622,C0103,R0913
-
 import torch
 import torch.nn as nn
 import torch.nn.parallel
 import torch.nn.functional as F
+
+# Only GeneratorNet1d, DiscriminatorNet2d, Encoder1d and Decoder1d
+# are explained as the other classes are just modified copies
 
 
 def weights_init(mod):

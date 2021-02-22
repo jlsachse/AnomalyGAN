@@ -1,14 +1,5 @@
-"""
-Losses
-"""
-# pylint: disable=C0301,C0103,R0902,R0915,W0221,W0622
 
-
-##
-# LIBRARIES
 import torch
-
-##
 
 
 def l1_loss(input, target):
@@ -23,8 +14,6 @@ def l1_loss(input, target):
     """
 
     return torch.mean(torch.abs(input - target))
-
-##
 
 
 def l2_loss(input, target, size_average=True):

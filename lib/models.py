@@ -10,6 +10,9 @@ from skorch.callbacks import EpochTimer, PrintLog, PassthroughScoring
 from lib.loss import l2_loss
 import lib.networks as nets
 
+# Ganomaly1d, Ganomaly2d and GanomalyFE
+# are constructed as follows:
+
 
 class Ganomaly1d(nn.Module):
 
@@ -27,12 +30,15 @@ class Ganomaly1d(nn.Module):
         self.encoder_weight = encoder_weight
         self.lambda_weight = lambda_weight
 
+        # loss functions for this model
         self.discriminator_loss = nn.BCELoss()
 
         self.adversarial_loss = l2_loss
         self.contextual_loss = nn.L1Loss()
         self.encoder_loss = l2_loss
 
+        # initialize discriminator and generator
+        # and weights
         self.discriminator = nets.DiscriminatorNet1d(
             input_size=self.input_size,
             n_z=self.n_z,
@@ -50,6 +56,7 @@ class Ganomaly1d(nn.Module):
         )
         self.generator.apply(nets.weights_init)
 
+    # forward returns the anomaly score
     def forward(self, X, y=None):
 
         fake, latent_real, latent_fake = self.generator(X)
@@ -67,12 +74,13 @@ class Ganomaly1d(nn.Module):
         return error.reshape(error.size(0)), X, fake, latent_real, latent_fake
 
 
+# The Ganomaly 2d class
+# is the same as the 1d constructor
+# except for different subnets
 class Ganomaly2d(nn.Module):
 
     def __init__(self, input_size, n_z, n_channels, n_fm_discriminator, n_fm_generator, n_gpus, adversarial_weight=1, contextual_weight=1, encoder_weight=1, lambda_weight=0.5):
         super().__init__()
-
-        print()
 
         self.input_size = input_size
         self.n_channels = n_channels
@@ -125,6 +133,9 @@ class Ganomaly2d(nn.Module):
         return error.reshape(error.size(0)), X, fake, latent_real, latent_fake
 
 
+# The Ganomaly 2d class
+# is the same as the 1d constructor
+# except for different subnets
 class GanomalyFE(nn.Module):
 
     def __init__(self, input_size, n_gpus, adversarial_weight=1, contextual_weight=1, encoder_weight=1, lambda_weight=0.5):
@@ -178,6 +189,7 @@ class GanomalyNet(NeuralNet):
 
         super().__init__(*args, **kwargs)
 
+    # initialize both optimizers
     def initialize_optimizer(self, *_, **__):
         args, kwargs = self.get_params_for_optimizer(
             'generator_optimizer', self.module_.generator.named_parameters())
@@ -190,9 +202,11 @@ class GanomalyNet(NeuralNet):
 
         return self
 
+    # the validation step is not implemented
     def validation_step(self, Xi, yi, **fit_params):
         raise NotImplementedError
 
+    # default callbacks for logging
     @property
     def _default_callbacks(self):
         return [
@@ -224,6 +238,7 @@ class GanomalyNet(NeuralNet):
             ('print_log', PrintLog()),
         ]
 
+    # training step
     def train_step(self, Xi, yi=None, **fit_params):
 
         # turn input data into tensor
@@ -344,6 +359,8 @@ class GanomalyNet(NeuralNet):
         # return scores as dictionary
         return {'generator_loss': generator_loss, 'train_loss': train_loss}
 
+    # proba also returns inner tensors of models
+    # for visualization purposes
     def predict_proba(self, X):
 
         nonlin = self._get_predict_nonlinearity()
@@ -357,5 +374,6 @@ class GanomalyNet(NeuralNet):
 
         return y_proba
 
+    # predict only returns the anomaly scores
     def predict(self, X):
         return self.predict_proba(X)[0]

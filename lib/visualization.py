@@ -40,10 +40,14 @@ def rename_tensorboard_key(key):
 
     return key
 
+# custom tensorboard calback
+
 
 class GANomalyBoard(TensorBoard):
 
+    # save parameters for visualizations
     def __init__(self, *args, plot_type, plot_shape, n_samples, plot_latent_shape, **kwargs):
+
         self.plot_type = plot_type
         self.plot_shape = plot_shape
         self.n_samples = n_samples
@@ -51,6 +55,7 @@ class GANomalyBoard(TensorBoard):
 
         super().__init__(*args, **kwargs)
 
+    # create plots on each epoch end
     def on_epoch_end(self, net, dataset_train, **kwargs):
 
         epoch = net.history[-1, 'epoch']
@@ -73,8 +78,9 @@ class GANomalyBoard(TensorBoard):
         self.writer.add_scalar('Scores/mean_anomaly_score',
                                mean_score, global_step=epoch)
 
-        super().on_epoch_end(net, **kwargs)  # call super last
+        super().on_epoch_end(net, **kwargs)
 
+    # extract images from model and create plots
     def _extract_images(self, net, dataset_train):
         generator = net.module_.generator
 
@@ -122,7 +128,7 @@ class GANomalyBoard(TensorBoard):
                 axis.set(xticklabels=[])
             return figure, latent_figure
 
-        if self.plot_type == 'barplot':
+        elif self.plot_type == 'barplot':
 
             sns.set_style('whitegrid')
 
@@ -140,7 +146,7 @@ class GANomalyBoard(TensorBoard):
                 axis.set(xticklabels=[])
             return figure, latent_figure
 
-        if self.plot_type == 'image':
+        elif self.plot_type == 'image':
             fake = fake.reshape((-1, 1, self.plot_shape, self.plot_shape))
             real = real.reshape((-1, 1, self.plot_shape, self.plot_shape))
             real_figure = make_grid(
@@ -150,6 +156,8 @@ class GANomalyBoard(TensorBoard):
             return real_figure, fake_figure, latent_figure
 
 
+# this is needed for visualizations within the notebooks
+# and is not used by the tenorboard
 def lineplot_comparison(result, first_line, second_line, title, xlabel, ylabel):
 
     sns.set(rc={'figure.figsize': (12, 10)}, style='darkgrid')

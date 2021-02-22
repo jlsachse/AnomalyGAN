@@ -5,6 +5,9 @@ import torch
 from skorch.callbacks import PassthroughScoring, ProgressBar
 from torch.utils.tensorboard import SummaryWriter
 
+# filters dataset by kwargs and return features and labels seperately
+# also creates subsamples
+
 
 def create_dataset(data, feature_columns, label_columns, sample_length=3136, **column_values):
 
@@ -49,12 +52,16 @@ def chunk(array, chunk_size, keep_rest):
                 yield result
 
 
+# function to build a model
+# is only really needed when many experiments
+# are conducted as it makes the notebooks
+# cleaner
 def build_model(model, device, max_epochs, batch_size, lr, beta1, beta2, workers, plot_type='lineplot', plot_shape=3136, n_samples=4, plot_latent_shape=600, suffix='', callbacks=[], verbose=0, **kwargs):
 
     module_kwargs = ['input_size', 'n_z', 'n_channels',
                      'n_gpus', 'n_fm_discriminator',
-                     'n_fm_generator', 'adversarial_weight', 'contextual_weight',
-                     'encoder_weight', 'lambda_weight']
+                     'n_fm_generator', 'fraud_weight', 'adversarial_weight',
+                     'contextual_weight', 'encoder_weight']
 
     module_kwargs = {'module__' + key: value for key,
                      value in kwargs.items() if key in module_kwargs}
@@ -67,11 +74,14 @@ def build_model(model, device, max_epochs, batch_size, lr, beta1, beta2, workers
             GANomalyBoard(
                 summary_writer,
                 key_mapper=rename_tensorboard_key,
+                close_after_train=False,
                 plot_type=plot_type,
                 plot_shape=plot_shape,
                 n_samples=n_samples,
                 plot_latent_shape=plot_latent_shape
             )
+
+        callbacks.append(ganomaly_board)
 
     output_model = GanomalyNet(
         model,
@@ -97,7 +107,6 @@ def build_model(model, device, max_epochs, batch_size, lr, beta1, beta2, workers
         iterator_train__shuffle=True,
         iterator_train__num_workers=workers,
         iterator_valid__num_workers=workers,
-        callbacks=callbacks + [ganomaly_board]
     )
 
     return output_model
